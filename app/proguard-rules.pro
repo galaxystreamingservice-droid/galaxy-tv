@@ -1,0 +1,3 @@
+-keep class io.github.muntashirakon.adb.** { *; }
+-keep class sun.security.** { *; }
+-dontwarn sun.security.**

@@ -1,0 +1,14 @@
+{
+  "note": "PLACEHOLDER — fill in after running the package dump on a real Onn / Google TV device.",
+  "always": [],
+  "alexa": [],
+  "ota": [],
+  "neverTouch": [
+    "org.smarttube.stable",
+    "com.haxapps.xc7",
+    "ar.tvplayer.tv",
+    "com.community.mbox.tv",
+    "io.world.vpn",
+    "com.galaxymedia.tvsetup"
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "note": "Groups are applied in order. 'always' runs on every setup; 'alexa' and 'ota' only if the settings file enables them.",
+  "always": [
+    "com.amazon.shoptv.firetv.client",
+    "com.amazon.shoptv.client",
+    "com.amazon.ftvads.deeplinking",
+    "com.amazon.hybridadidservice",
+    "com.amazon.tv.oobe",
+    "com.amazon.storm.lightning.tutorial",
+    "com.amazon.tmm.tutorial",
+    "com.amazon.ftv.xpicker",
+    "com.amazon.tv.earlyaccess",
+    "com.amazon.sneakpeek",
+    "com.amazon.minitv.android.app",
+    "com.amazon.gamehub"
+  ],
+  "alexa": [
+    "com.amazon.alexa.datastore.app",
+    "com.amazon.alexadirectivebrokerservice",
+    "com.amazon.tv.alexanotifications",
+    "com.amazon.tv.alexaalerts",
+    "com.amazon.alexa.externalmediaplayer.fireos",
+    "com.ivona.orchestrator",
+    "com.ivona.tts.oem"
+  ],
+  "ota": [
+    "com.amazon.device.software.ota",
+    "com.amazon.device.software.ota.override",
+    "com.amazon.tv.forcedotaupdater.v2",
+    "com.amazon.tv.easyupgrade"
+  ],
+  "neverTouch": [
+    "org.smarttube.stable",
+    "com.termux",
+    "org.fdroid.fdroid",
+    "com.esaba.downloader",
+    "fyahrebrands.applinked.galaxystore",
+    "com.haxapps.xc7",
+    "ar.tvplayer.tv",
+    "com.community.mbox.tv",
+    "io.world.vpn",
+    "com.galaxymedia.tvsetup"
+  ]
+}

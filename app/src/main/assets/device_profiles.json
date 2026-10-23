@@ -1,0 +1,21 @@
+{
+  "fireos": {
+    "AFTKM":      { "name": "Fire TV Stick 4K (2nd Gen, 2023)",      "ramGb": 2,   "tier": "full" },
+    "AFTKRT":     { "name": "Fire TV Stick 4K Max (2nd Gen, 2023)",  "ramGb": 2,   "tier": "full" },
+    "AFTMA08C15": { "name": "Fire TV Stick 4K Plus (2025)",          "ramGb": 2,   "tier": "full" },
+    "AFTKA":      { "name": "Fire TV Stick 4K Max (1st Gen, 2021)",  "ramGb": 2,   "tier": "full" },
+    "AFTMM":      { "name": "Fire TV Stick 4K (1st Gen, 2018)",      "ramGb": 1.5, "tier": "lite" },
+    "AFTSSS":     { "name": "Fire TV Stick (3rd Gen, 2020)",         "ramGb": 1,   "tier": "lite" },
+    "AFTSS":      { "name": "Fire TV Stick Lite / Stick HD",         "ramGb": 1,   "tier": "lite" },
+    "AFTT":       { "name": "Fire TV Stick (2nd Gen / Basic, 2016-19)", "ramGb": 1, "tier": "unsupported" },
+    "AFTM":       { "name": "Fire TV Stick (1st Gen, 2014)",         "ramGb": 1,   "tier": "unsupported" }
+  },
+  "defaults": {
+    "fireos_unknown":   { "name": "Unknown Fire TV device", "ramGb": 2, "tier": "full" },
+    "googletv_unknown": { "name": "Google TV / Android TV device", "ramGb": 2, "tier": "full" }
+  },
+  "tierBehavior": {
+    "full": { "killPreviousApp": false, "allowAnimatedBackground": true },
+    "lite": { "killPreviousApp": true,  "allowAnimatedBackground": false }
+  }
+}
