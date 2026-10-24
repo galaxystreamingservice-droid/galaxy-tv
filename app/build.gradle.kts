@@ -40,7 +40,7 @@ dependencies {
     implementation("com.github.MuntashirAkon:libadb-android:1.0.1")
     implementation("org.conscrypt:conscrypt-android:2.5.2")
 
-    // Bouncy Castle: generates the self-signed cert ADB needs for the auth handshake
-    implementation("org.bouncycastle:bcprov-jdk18on:1.78.1")
-    implementation("org.bouncycastle:bcpkix-jdk18on:1.78.1")
+    // Bouncy Castle cert builder — matches the bcprov version libadb-android already pulls in (1.69),
+    // so there is exactly one copy of the library on the classpath.
+    implementation("org.bouncycastle:bcpkix-jdk15on:1.69")
 }
