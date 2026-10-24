@@ -11,8 +11,8 @@ android {
         applicationId = "com.galaxymedia.tvsetup"
         minSdk = 25          // Fire OS 6+ (Fire TV Stick 4K 1st gen and newer)
         targetSdk = 34
-        versionCode = 2
-        versionName = "0.1.1"
+        versionCode = 3
+        versionName = "0.1.2"
     }
 
     buildTypes {
