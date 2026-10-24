@@ -1,10 +1,12 @@
-name: Build APK
-
+>name: Build APK
+-
 on:
   push:
     branches: [ main ]
-    tags: [ 'v*' ]
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -26,14 +28,24 @@ jobs:
       - name: Build debug APK
         run: gradle assembleDebug --no-daemon
 
+      - name: Read version and name the APK
+        id: ver
+        run: |
+          VER=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)
+          echo "ver=$VER" >> "$GITHUB_OUTPUT"
+          cp app/build/outputs/apk/debug/app-debug.apk "galaxy-setup-v$VER.apk"
+          echo "Built galaxy-setup-v$VER.apk"
+
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: GalaxyTVSetup-debug
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: GalaxyTVSetup-v${{ steps.ver.outputs.ver }}
+          path: galaxy-setup-v${{ steps.ver.outputs.ver }}.apk
 
-      - name: Publish release (on tag)
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Publish release automatically
         uses: softprops/action-gh-release@v2
         with:
-          files: app/build/outputs/apk/debug/app-debug.apk
+          tag_name: v${{ steps.ver.outputs.ver }}
+          name: Galaxy TV Setup v${{ steps.ver.outputs.ver }}
+          files: galaxy-setup-v${{ steps.ver.outputs.ver }}.apk
+          make_latest: true
