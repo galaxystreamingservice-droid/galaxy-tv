@@ -30,7 +30,8 @@ class AppReconciler(private val ctx: Context) {
             if (!needsWork) { log("ok    ${app.name} v$knownVersion"); continue }
 
             log("get   ${app.name} ← ${app.apkUrl}")
-            val apk = download(app.apkUrl, "${app.packageName}.apk") ?: run { log("FAIL  ${app.name}: download error"); continue }
+            val apk = download(app.apkUrl, "${app.packageName}.apk")
+            if (apk == null) { log("FAIL  ${app.name}: download error"); continue }
 
             // pm install reads a path the shell user can see; /data/local/tmp is the standard spot.
             val tmp = "/data/local/tmp/${apk.name}"

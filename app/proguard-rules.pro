@@ -1,3 +1,4 @@
 -keep class io.github.muntashirakon.adb.** { *; }
--keep class sun.security.** { *; }
+-keep class org.bouncycastle.** { *; }
+-dontwarn org.bouncycastle.**
 -dontwarn sun.security.**

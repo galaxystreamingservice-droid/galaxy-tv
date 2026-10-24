@@ -38,6 +38,9 @@ dependencies {
 
     // On-device ADB client (lets the app talk to its own ADB daemon on 127.0.0.1:5555)
     implementation("com.github.MuntashirAkon:libadb-android:1.0.1")
-    implementation("com.github.MuntashirAkon:sun-security-android:1.1")
     implementation("org.conscrypt:conscrypt-android:2.5.2")
+
+    // Bouncy Castle: generates the self-signed cert ADB needs for the auth handshake
+    implementation("org.bouncycastle:bcprov-jdk18on:1.78.1")
+    implementation("org.bouncycastle:bcpkix-jdk18on:1.78.1")
 }
