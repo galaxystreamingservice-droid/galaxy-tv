@@ -1,6 +1,9 @@
 package com.galaxymedia.tvsetup
 
 import android.app.AlertDialog
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.provider.Settings
 import android.os.Bundle
 import android.widget.Button
 import android.widget.EditText
@@ -32,6 +35,7 @@ class MainActivity : AppCompatActivity() {
         val btnSync = findViewById<Button>(R.id.btnSync)
         val btnMaint = findViewById<Button>(R.id.btnMaint)
         val btnReset = findViewById<Button>(R.id.btnReset)
+        val btnWifi = findViewById<Button>(R.id.btnWifi)
 
         fun enableAll(on: Boolean) { listOf(btnSetup, btnSync, btnMaint, btnReset).forEach { it.isEnabled = on } }
         if (prefs.paired) enableAll(true)
@@ -44,8 +48,10 @@ class MainActivity : AppCompatActivity() {
             log("Connecting to this device's ADB (127.0.0.1:5555)…")
             log(">>> If a dialog appears on screen, choose ALWAYS ALLOW then OK.")
             io.launch {
-                val ok = AdbShell.connect(this@MainActivity)
+                val result = AdbShell.connectDetailed(this@MainActivity)
+                val ok = result.ok
                 withContext(Dispatchers.Main) {
+                    log("diag: ${result.detail}")
                     if (ok) {
                         prefs.paired = true
                         log("✓ Paired. Shell access confirmed.")
@@ -90,6 +96,16 @@ class MainActivity : AppCompatActivity() {
 
         btnMaint.setOnClickListener {
             io.launch { MaintenanceTasks.clearCache(this@MainActivity, ::logAsync) }
+        }
+
+        // Wi-Fi works before pairing too — it's just the system settings screen.
+        btnWifi.setOnClickListener {
+            try {
+                startActivity(Intent(Settings.ACTION_WIFI_SETTINGS))
+            } catch (e: ActivityNotFoundException) {
+                try { startActivity(Intent(Settings.ACTION_SETTINGS)) }
+                catch (e2: ActivityNotFoundException) { log("Could not open system settings on this build.") }
+            }
         }
 
         btnReset.setOnClickListener {

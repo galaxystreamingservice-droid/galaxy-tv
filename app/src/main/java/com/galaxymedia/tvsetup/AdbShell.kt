@@ -78,12 +78,38 @@ object AdbShell {
     private const val HOST = "127.0.0.1"
     private const val PORT = 5555
 
-    /** Returns true when connected AND authorized. Blocks — call off the main thread. */
-    fun connect(ctx: Context): Boolean {
+    data class ConnectResult(val ok: Boolean, val detail: String)
+
+    /**
+     * Connect with a clear diagnosis of what went wrong. Blocks — call off the main thread.
+     * Step 1: raw TCP probe (is anything listening on 5555 at all?).
+     * Step 2: real ADB handshake (this is what triggers the on-screen Allow dialog).
+     */
+    fun connectDetailed(ctx: Context): ConnectResult {
         val mgr = AdbConnectionManager.get(ctx)
-        if (mgr.isConnected) return true
-        return try { mgr.connect(HOST, PORT) } catch (e: Exception) { false }
+        if (mgr.isConnected) return ConnectResult(true, "already connected")
+
+        // Step 1 — is port 5555 open on loopback?
+        try {
+            java.net.Socket().use { it.connect(java.net.InetSocketAddress(HOST, PORT), 3000) }
+        } catch (e: Exception) {
+            return ConnectResult(false,
+                "PORT CLOSED on 127.0.0.1:5555 (${e.javaClass.simpleName}: ${e.message}). " +
+                "ADB Debugging is OFF, or this Fire OS build does not expose ADB on loopback.")
+        }
+
+        // Step 2 — ADB handshake + RSA auth (dialog should appear here)
+        return try {
+            val ok = mgr.connect(HOST, PORT)
+            if (ok) ConnectResult(true, "port open, handshake OK, authorized")
+            else ConnectResult(false, "port open, but connect() returned false — dialog pending, dismissed, or denied")
+        } catch (e: Exception) {
+            ConnectResult(false, "port open, handshake FAILED: ${e.javaClass.simpleName}: ${e.message}")
+        }
     }
+
+    /** Returns true when connected AND authorized. Blocks — call off the main thread. */
+    fun connect(ctx: Context): Boolean = connectDetailed(ctx).ok
 
     /** Run one shell command and return its combined output. */
     fun exec(ctx: Context, cmd: String): String {
