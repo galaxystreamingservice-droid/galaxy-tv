@@ -28,6 +28,8 @@ class MainActivity : AppCompatActivity() {
         prefs = Prefs(this)
         profile = DeviceProfile.detect(this)
         logView = findViewById(R.id.log)
+        val ver = try { packageManager.getPackageInfo(packageName, 0).versionName } catch (e: Exception) { "?" }
+        findViewById<TextView>(R.id.title).text = getString(R.string.title) + "  ·  v$ver"
         findViewById<TextView>(R.id.deviceInfo).text = profile.summary()
 
         val btnPair = findViewById<Button>(R.id.btnPair)
@@ -48,6 +50,7 @@ class MainActivity : AppCompatActivity() {
             log("Connecting to this device's ADB (127.0.0.1:5555)…")
             log(">>> If a dialog appears on screen, choose ALWAYS ALLOW then OK.")
             io.launch {
+                logAsync("probe: " + AdbShell.rawProbe())
                 val result = AdbShell.connectDetailed(this@MainActivity)
                 val ok = result.ok
                 withContext(Dispatchers.Main) {
