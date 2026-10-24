@@ -104,8 +104,55 @@ object AdbShell {
             if (ok) ConnectResult(true, "port open, handshake OK, authorized")
             else ConnectResult(false, "port open, but connect() returned false — dialog pending, dismissed, or denied")
         } catch (e: Exception) {
-            ConnectResult(false, "port open, handshake FAILED: ${e.javaClass.simpleName}: ${e.message}")
+            ConnectResult(false, "port open, handshake FAILED: " + describe(e))
         }
+    }
+
+    /** Exception + every nested cause + first few stack frames, so nothing is hidden. */
+    private fun describe(e: Throwable): String {
+        val sb = StringBuilder()
+        var t: Throwable? = e
+        var depth = 0
+        while (t != null && depth < 5) {
+            if (depth > 0) sb.append("\n   caused by: ")
+            sb.append(t.javaClass.simpleName).append(": ").append(t.message)
+            t.stackTrace.take(3).forEach { sb.append("\n      at ").append(it.className.substringAfterLast('.')).append('.').append(it.methodName).append(':').append(it.lineNumber) }
+            t = t.cause; depth++
+        }
+        return sb.toString()
+    }
+
+    /**
+     * Talks the raw ADB wire protocol with NO library: sends CNXN, reports what adbd answers.
+     * Tells us whether the daemon itself is healthy on loopback, independent of libadb.
+     */
+    fun rawProbe(): String {
+        val A_CNXN = 0x4e584e43; val A_AUTH = 0x48545541; val A_CLSE = 0x45534c43
+        fun name(c: Int) = when (c) { A_CNXN -> "CNXN"; A_AUTH -> "AUTH"; A_CLSE -> "CLSE"; else -> "0x%08x".format(c) }
+        return try {
+            java.net.Socket().use { sock ->
+                sock.connect(java.net.InetSocketAddress(HOST, PORT), 3000)
+                sock.soTimeout = 5000
+                val payload = "host::\u0000".toByteArray(Charsets.US_ASCII)
+                val hdr = java.nio.ByteBuffer.allocate(24).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+                hdr.putInt(A_CNXN).putInt(0x01000001).putInt(1024 * 1024)
+                    .putInt(payload.size).putInt(payload.sumOf { it.toInt() and 0xff }).putInt(A_CNXN.inv())
+                sock.getOutputStream().apply { write(hdr.array()); write(payload); flush() }
+
+                val inp = java.io.DataInputStream(sock.getInputStream())
+                val resp = ByteArray(24); inp.readFully(resp)
+                val rb = java.nio.ByteBuffer.wrap(resp).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+                val cmd = rb.getInt(); val arg0 = rb.getInt(); rb.getInt(); val len = rb.getInt()
+                val body = ByteArray(len); if (len > 0) inp.readFully(body)
+                when (cmd) {
+                    A_AUTH -> "adbd replied AUTH (type=$arg0, ${len}B token) — daemon healthy, wants RSA auth"
+                    A_CNXN -> "adbd replied CNXN immediately — no auth required (!)"
+                    else   -> "adbd replied ${name(cmd)} arg0=$arg0 len=$len"
+                }
+            }
+        } catch (e: java.io.EOFException) { "adbd CLOSED the connection without replying"
+        } catch (e: java.net.SocketTimeoutException) { "adbd accepted TCP but never replied (5s)"
+        } catch (e: Exception) { "probe error: ${e.javaClass.simpleName}: ${e.message}" }
     }
 
     /** Returns true when connected AND authorized. Blocks — call off the main thread. */
