@@ -6,6 +6,7 @@
     <string name="btn_setup">2. Run full setup</string>
     <string name="btn_sync">Check settings now</string>
     <string name="btn_maint">Clear cache &amp; speed up</string>
+    <string name="btn_wifi">Change Wi-Fi / network</string>
     <string name="btn_reset">Reset to factory defaults</string>
     <string name="status_idle">Press Pair to begin. Make sure ADB Debugging is ON in Developer Options.</string>
 </resources>
