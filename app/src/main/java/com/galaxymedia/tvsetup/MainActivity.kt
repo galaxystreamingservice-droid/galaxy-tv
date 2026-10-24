@@ -47,10 +47,10 @@ class MainActivity : AppCompatActivity() {
         }
 
         btnPair.setOnClickListener {
-            log("Connecting to this device's ADB (127.0.0.1:5555)…")
+            log("Connecting to this device's ADB via ${AdbShell.candidateHosts()}…")
             log(">>> If a dialog appears on screen, choose ALWAYS ALLOW then OK.")
             io.launch {
-                logAsync("probe: " + AdbShell.rawProbe())
+                for (h in AdbShell.candidateHosts()) logAsync("probe [$h]: " + AdbShell.rawProbe(h))
                 val result = AdbShell.connectDetailed(this@MainActivity)
                 val ok = result.ok
                 withContext(Dispatchers.Main) {

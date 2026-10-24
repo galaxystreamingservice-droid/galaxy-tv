@@ -78,6 +78,18 @@ object AdbShell {
     private const val HOST = "127.0.0.1"
     private const val PORT = 5555
 
+    /** The device's own non-loopback IPv4 (Wi-Fi/Ethernet), or null. */
+    fun localLanIp(): String? = try {
+        java.net.NetworkInterface.getNetworkInterfaces().toList()
+            .filter { it.isUp && !it.isLoopback }
+            .flatMap { it.inetAddresses.toList() }
+            .firstOrNull { it is java.net.Inet4Address && !it.isLoopbackAddress }
+            ?.hostAddress
+    } catch (e: Exception) { null }
+
+    /** Hosts to try, in order: loopback, then our own LAN address. */
+    fun candidateHosts(): List<String> = listOfNotNull(HOST, localLanIp()).distinct()
+
     data class ConnectResult(val ok: Boolean, val detail: String)
 
     /**
@@ -89,23 +101,23 @@ object AdbShell {
         val mgr = AdbConnectionManager.get(ctx)
         if (mgr.isConnected) return ConnectResult(true, "already connected")
 
-        // Step 1 — is port 5555 open on loopback?
-        try {
-            java.net.Socket().use { it.connect(java.net.InetSocketAddress(HOST, PORT), 3000) }
-        } catch (e: Exception) {
-            return ConnectResult(false,
-                "PORT CLOSED on 127.0.0.1:5555 (${e.javaClass.simpleName}: ${e.message}). " +
-                "ADB Debugging is OFF, or this Fire OS build does not expose ADB on loopback.")
+        val notes = StringBuilder()
+        for (host in candidateHosts()) {
+            // Step 1 — is port 5555 open on this address?
+            try {
+                java.net.Socket().use { it.connect(java.net.InetSocketAddress(host, PORT), 3000) }
+            } catch (e: Exception) {
+                notes.append("[$host] PORT CLOSED (${e.javaClass.simpleName})\n"); continue
+            }
+            // Step 2 — ADB handshake + RSA auth (dialog should appear here)
+            try {
+                if (mgr.connect(host, PORT)) return ConnectResult(true, "[$host] handshake OK, authorized")
+                notes.append("[$host] connect() returned false — dialog pending, dismissed, or denied\n")
+            } catch (e: Exception) {
+                notes.append("[$host] handshake FAILED: ").append(describe(e)).append("\n")
+            }
         }
-
-        // Step 2 — ADB handshake + RSA auth (dialog should appear here)
-        return try {
-            val ok = mgr.connect(HOST, PORT)
-            if (ok) ConnectResult(true, "port open, handshake OK, authorized")
-            else ConnectResult(false, "port open, but connect() returned false — dialog pending, dismissed, or denied")
-        } catch (e: Exception) {
-            ConnectResult(false, "port open, handshake FAILED: " + describe(e))
-        }
+        return ConnectResult(false, notes.toString().trimEnd())
     }
 
     /** Exception + every nested cause + first few stack frames, so nothing is hidden. */
@@ -126,12 +138,12 @@ object AdbShell {
      * Talks the raw ADB wire protocol with NO library: sends CNXN, reports what adbd answers.
      * Tells us whether the daemon itself is healthy on loopback, independent of libadb.
      */
-    fun rawProbe(): String {
+    fun rawProbe(host: String = HOST): String {
         val A_CNXN = 0x4e584e43; val A_AUTH = 0x48545541; val A_CLSE = 0x45534c43
         fun name(c: Int) = when (c) { A_CNXN -> "CNXN"; A_AUTH -> "AUTH"; A_CLSE -> "CLSE"; else -> "0x%08x".format(c) }
         return try {
             java.net.Socket().use { sock ->
-                sock.connect(java.net.InetSocketAddress(HOST, PORT), 3000)
+                sock.connect(java.net.InetSocketAddress(host, PORT), 3000)
                 sock.soTimeout = 5000
                 val payload = "host::\u0000".toByteArray(Charsets.US_ASCII)
                 val hdr = java.nio.ByteBuffer.allocate(24).order(java.nio.ByteOrder.LITTLE_ENDIAN)
