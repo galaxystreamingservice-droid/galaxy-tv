@@ -11,8 +11,8 @@ android {
         applicationId = "com.galaxymedia.tvsetup"
         minSdk = 25          // Fire OS 6+ (Fire TV Stick 4K 1st gen and newer)
         targetSdk = 34
-        versionCode = 8
-        versionName = "0.2.3"
+        versionCode = 10
+        versionName = "0.2.5"
     }
 
     // One fixed signing key, so every build installs over the last one without an uninstall.
@@ -48,14 +48,4 @@ dependencies {
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
-
-    // On-device ADB client (lets the app talk to its own ADB daemon on 127.0.0.1:5555)
-    implementation("com.github.MuntashirAkon:libadb-android:3.1.1") {
-        exclude(group = "org.bouncycastle")   // we supply one consistent BC version below
-    }
-    implementation("org.conscrypt:conscrypt-android:2.5.2")
-
-    // Bouncy Castle: one matching pair, so there is exactly one copy on the classpath
-    implementation("org.bouncycastle:bcprov-jdk18on:1.78.1")
-    implementation("org.bouncycastle:bcpkix-jdk18on:1.78.1")
 }
