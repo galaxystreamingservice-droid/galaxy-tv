@@ -5,11 +5,13 @@ import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.graphics.Color
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.view.View
 import android.widget.Button
 import android.widget.EditText
+import android.widget.ScrollView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import com.galaxymedia.tvsetup.model.AppEntry
@@ -47,13 +49,15 @@ class MainActivity : AppCompatActivity() {
         statusView = findViewById(R.id.status)
         expiryView = findViewById(R.id.expiry)
 
-        val ver = try { packageManager.getPackageInfo(packageName, 0).versionName } catch (e: Exception) { "?" }
+        val ver = currentVersion()
         findViewById<TextView>(R.id.title).text = getString(R.string.title) + "  ·  v$ver"
         findViewById<TextView>(R.id.deviceInfo).text = profile.summary()
         if (profile.tier == "unsupported") log("⚠ This model is too old for the full experience. Lite features only.")
 
         findViewById<Button>(R.id.btnCheck).setOnClickListener { checkUpdates() }
         findViewById<Button>(R.id.btnInstall).setOnClickListener { startInstalls() }
+        findViewById<Button>(R.id.btnSelf).setOnClickListener { selfUpdate() }
+        findViewById<Button>(R.id.btnDiag).setOnClickListener { showDiagnostics() }
         findViewById<Button>(R.id.btnUrl).setOnClickListener { askForSettingsUrl() }
         findViewById<Button>(R.id.btnWifi).setOnClickListener { openSystem(Settings.ACTION_WIFI_SETTINGS) }
         findViewById<Button>(R.id.btnSystem).setOnClickListener {
@@ -185,16 +189,65 @@ class MainActivity : AppCompatActivity() {
         }
         AlertDialog.Builder(this)
             .setTitle("Settings file URL")
-            .setMessage("Paste the RAW link to this device's settings Gist.")
+            .setMessage("Paste the RAW link, or just the 32-character code from it.")
             .setView(input)
             .setPositiveButton("Save") { _, _ ->
-                val url = input.text.toString().trim()
+                var url = input.text.toString().trim()
+                if (Regex("^[0-9a-fA-F]{32}$").matches(url)) {
+                    url = "https://gist.githubusercontent.com/galaxystreamingservice-droid/${url.lowercase()}/raw/device-settings.json"
+                }
                 prefs.settingsUrl = url
                 if (url.isBlank()) log("settings URL is EMPTY - nothing was pasted. Try again.")
                 else log("settings URL saved (${url.length} chars, ends …${url.takeLast(20)})")
                 refreshStatus()
             }
             .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun currentVersion(): String =
+        try { packageManager.getPackageInfo(packageName, 0).versionName ?: "?" } catch (e: Exception) { "?" }
+
+    /** Checks GitHub for a newer Galaxy TV Setup and installs it over this one (same signing key). */
+    private fun selfUpdate() {
+        if (!updater.canInstall()) { askInstallPermission(); return }
+        io.launch {
+            val rel = updater.latestRelease()
+            if (rel == null) { logAsync("Couldn't reach GitHub to check for a new version."); return@launch }
+            val mine = currentVersion()
+            if (!updater.isNewer(rel.version, mine)) { logAsync("Galaxy TV Setup is up to date (v$mine)."); return@launch }
+            logAsync("New version v${rel.version} found. Downloading…")
+            val file = updater.downloadTo(rel.apkUrl, "galaxy-self.apk")
+            withContext(Dispatchers.Main) {
+                if (file == null) { log("FAIL  Galaxy TV Setup: download error"); return@withContext }
+                try { startActivity(updater.installIntent(file)) }
+                catch (e: Exception) { log("FAIL  Galaxy TV Setup: ${e.message}") }
+            }
+        }
+    }
+
+    /** Big, photo-friendly report. Contains no links or passwords. */
+    private fun showDiagnostics() {
+        val raw = prefs.lastSettingsJson
+        val appLines = try {
+            if (raw.isBlank()) "settings file: not loaded yet"
+            else DeviceSettings.parse(raw).apps.joinToString("\n") {
+                (if (updater.isInstalled(it.packageName)) "[x] " else "[ ] ") + it.name
+            }
+        } catch (e: Exception) { "settings file: unreadable" }
+        val lastLog = logView.text.toString().lines().takeLast(12).joinToString("\n")
+        val report = "Galaxy TV Setup v${currentVersion()}\n" +
+            "${profile.summary()}\n" +
+            "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})\n" +
+            "Build ${Build.DISPLAY}\n" +
+            "${statusView.text}\n\n" +
+            "APPS  ([x] installed)\n$appLines\n\n" +
+            "LOG\n$lastLog"
+        val tv = TextView(this).apply { text = report; textSize = 18f; setPadding(48, 32, 48, 32) }
+        AlertDialog.Builder(this)
+            .setTitle("Diagnostics - take a photo of this screen")
+            .setView(ScrollView(this).apply { addView(tv) })
+            .setPositiveButton("Close", null)
             .show()
     }
 

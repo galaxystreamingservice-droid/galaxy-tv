@@ -6,9 +6,12 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.content.FileProvider
 import com.galaxymedia.tvsetup.model.AppEntry
+import org.json.JSONObject
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
+
+data class SelfRelease(val version: String, val apkUrl: String)
 
 data class AppStatus(val app: AppEntry, val state: String) {
     fun line(): String = state.padEnd(8) + app.name
@@ -48,6 +51,45 @@ class AppUpdater(private val ctx: Context, private val prefs: Prefs) {
             instanceFollowRedirects = true; connectTimeout = 15000; readTimeout = 60000
         }
         val file = File(ctx.cacheDir, "${app.packageName}.apk")
+        conn.inputStream.use { inp -> file.outputStream().use { inp.copyTo(it) } }
+        file
+    } catch (e: Exception) { null }
+
+
+    /** Newest Galaxy TV Setup release on GitHub (public repo, no login needed). */
+    fun latestRelease(): SelfRelease? = try {
+        val conn = (URL("https://api.github.com/repos/galaxystreamingservice-droid/galaxy-tv/releases/latest")
+            .openConnection() as HttpURLConnection).apply {
+            connectTimeout = 15000; readTimeout = 15000
+            setRequestProperty("User-Agent", "galaxy-tv-setup")
+            setRequestProperty("Accept", "application/vnd.github+json")
+        }
+        val j = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
+        val tag = j.getString("tag_name").trimStart('v', 'V')
+        val assets = j.getJSONArray("assets")
+        var url = ""
+        for (i in 0 until assets.length()) {
+            val a = assets.getJSONObject(i)
+            if (a.getString("name").endsWith(".apk")) { url = a.getString("browser_download_url"); break }
+        }
+        if (url.isBlank()) null else SelfRelease(tag, url)
+    } catch (e: Exception) { null }
+
+    fun isNewer(remote: String, local: String): Boolean {
+        val r = remote.split(".").map { it.toIntOrNull() ?: 0 }
+        val l = local.split(".").map { it.toIntOrNull() ?: 0 }
+        for (i in 0 until maxOf(r.size, l.size)) {
+            val a = r.getOrElse(i) { 0 }; val b = l.getOrElse(i) { 0 }
+            if (a != b) return a > b
+        }
+        return false
+    }
+
+    fun downloadTo(url: String, fileName: String): File? = try {
+        val conn = (URL(url).openConnection() as HttpURLConnection).apply {
+            instanceFollowRedirects = true; connectTimeout = 15000; readTimeout = 60000
+        }
+        val file = File(ctx.cacheDir, fileName)
         conn.inputStream.use { inp -> file.outputStream().use { inp.copyTo(it) } }
         file
     } catch (e: Exception) { null }

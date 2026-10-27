@@ -47,6 +47,8 @@
 
         <Button android:id="@+id/btnCheck"   android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="24dp" android:text="Check for updates" />
         <Button android:id="@+id/btnInstall" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="10dp" android:text="Install updates" />
+        <Button android:id="@+id/btnSelf"    android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="10dp" android:text="Update Galaxy TV Setup" />
+        <Button android:id="@+id/btnDiag"    android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="10dp" android:text="Send diagnostics" />
         <Button android:id="@+id/btnUrl"     android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="10dp" android:text="Set settings file URL" />
         <Button android:id="@+id/btnWifi"    android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="10dp" android:text="Change Wi-Fi / network" />
         <Button android:id="@+id/btnSystem"  android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="10dp" android:text="Open system settings (reset lives here)" />
