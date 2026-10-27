@@ -33,6 +33,7 @@ jobs:
           VER=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)
           echo "ver=$VER" >> "$GITHUB_OUTPUT"
           cp app/build/outputs/apk/debug/app-debug.apk "galaxy-setup-v$VER.apk"
+          cp "galaxy-setup-v$VER.apk" galaxy-setup.apk
           echo "Built galaxy-setup-v$VER.apk"
 
       - name: Upload APK artifact
@@ -46,5 +47,7 @@ jobs:
         with:
           tag_name: v${{ steps.ver.outputs.ver }}
           name: Galaxy TV Setup v${{ steps.ver.outputs.ver }}
-          files: galaxy-setup-v${{ steps.ver.outputs.ver }}.apk
+          files: |
+            galaxy-setup-v${{ steps.ver.outputs.ver }}.apk
+            galaxy-setup.apk
           make_latest: true
