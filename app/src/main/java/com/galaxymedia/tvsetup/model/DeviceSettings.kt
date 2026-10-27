@@ -35,7 +35,8 @@ data class DeviceSettings(
     val apps: List<AppEntry>,
     val leagues: List<String>,
     val teams: Map<String, String>,
-    val boxing: List<BoxingEvent>
+    val boxing: List<BoxingEvent>,
+    val iptvExpires: String = ""      // "YYYY-MM-DD", optional
 ) {
     companion object {
         fun parse(raw: String): DeviceSettings {
@@ -97,7 +98,8 @@ data class DeviceSettings(
                 apps = apps,
                 leagues = leagues,
                 teams = teams,
-                boxing = boxing
+                boxing = boxing,
+                iptvExpires = o.optString("iptvExpires", "")
             )
         }
     }

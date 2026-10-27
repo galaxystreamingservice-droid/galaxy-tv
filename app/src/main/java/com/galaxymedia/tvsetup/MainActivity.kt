@@ -3,23 +3,38 @@ package com.galaxymedia.tvsetup
 import android.app.AlertDialog
 import android.content.ActivityNotFoundException
 import android.content.Intent
-import android.provider.Settings
+import android.graphics.Color
+import android.net.Uri
 import android.os.Bundle
+import android.provider.Settings
+import android.view.View
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import com.galaxymedia.tvsetup.model.AppEntry
+import com.galaxymedia.tvsetup.model.DeviceSettings
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.text.DateFormat
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var logView: TextView
+    private lateinit var statusView: TextView
+    private lateinit var expiryView: TextView
     private lateinit var profile: DeviceProfile
     private lateinit var prefs: Prefs
+    private lateinit var updater: AppUpdater
     private val io = CoroutineScope(Dispatchers.IO)
+
+    private val queue = ArrayDeque<AppEntry>()
+    private var awaitingInstall = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -27,105 +42,147 @@ class MainActivity : AppCompatActivity() {
 
         prefs = Prefs(this)
         profile = DeviceProfile.detect(this)
+        updater = AppUpdater(this, prefs)
         logView = findViewById(R.id.log)
+        statusView = findViewById(R.id.status)
+        expiryView = findViewById(R.id.expiry)
+
         val ver = try { packageManager.getPackageInfo(packageName, 0).versionName } catch (e: Exception) { "?" }
         findViewById<TextView>(R.id.title).text = getString(R.string.title) + "  ·  v$ver"
         findViewById<TextView>(R.id.deviceInfo).text = profile.summary()
+        if (profile.tier == "unsupported") log("⚠ This model is too old for the full experience. Lite features only.")
 
-        val btnPair = findViewById<Button>(R.id.btnPair)
-        val btnSetup = findViewById<Button>(R.id.btnSetup)
-        val btnSync = findViewById<Button>(R.id.btnSync)
-        val btnMaint = findViewById<Button>(R.id.btnMaint)
-        val btnReset = findViewById<Button>(R.id.btnReset)
-        val btnWifi = findViewById<Button>(R.id.btnWifi)
-
-        fun enableAll(on: Boolean) { listOf(btnSetup, btnSync, btnMaint, btnReset).forEach { it.isEnabled = on } }
-        if (prefs.paired) enableAll(true)
-
-        if (profile.tier == "unsupported") {
-            log("⚠ This model is too old for the full experience. Lite-only features will be used.")
+        findViewById<Button>(R.id.btnCheck).setOnClickListener { checkUpdates() }
+        findViewById<Button>(R.id.btnInstall).setOnClickListener { startInstalls() }
+        findViewById<Button>(R.id.btnUrl).setOnClickListener { askForSettingsUrl() }
+        findViewById<Button>(R.id.btnWifi).setOnClickListener { openSystem(Settings.ACTION_WIFI_SETTINGS) }
+        findViewById<Button>(R.id.btnSystem).setOnClickListener {
+            log("Factory reset: My Fire TV → Reset to Factory Defaults.")
+            openSystem(Settings.ACTION_SETTINGS)
         }
 
-        btnPair.setOnClickListener {
-            log("Connecting to this device's ADB via ${AdbShell.candidateHosts()}…")
-            log(">>> If a dialog appears on screen, choose ALWAYS ALLOW then OK.")
-            io.launch {
-                for (h in AdbShell.candidateHosts()) logAsync("probe [$h]: " + AdbShell.rawProbe(h))
-                val result = AdbShell.connectDetailed(this@MainActivity)
-                val ok = result.ok
-                withContext(Dispatchers.Main) {
-                    log("diag: ${result.detail}")
-                    if (ok) {
-                        prefs.paired = true
-                        log("✓ Paired. Shell access confirmed.")
-                        log(AdbShell.exec(this@MainActivity, "getprop ro.product.model").trim().let { "model via shell: $it" })
-                        enableAll(true)
-                        if (prefs.settingsUrl.isBlank()) askForSettingsUrl()
-                    } else {
-                        log("✗ Could not connect. Check: Developer Options → ADB Debugging = ON, then try again.")
-                        log("  If it never prompts, this build may block loopback ADB — we'll use the phone pairing method instead.")
+        refreshStatus()
+        if (prefs.settingsUrl.isBlank()) log("Press 'Set settings file URL' and paste this TV's settings link.")
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (awaitingInstall) {
+            awaitingInstall = false
+            updater.reconcilePending(::log)
+            refreshStatus()
+            nextInstall()
+        } else {
+            refreshStatus()
+        }
+    }
+
+    private fun refreshStatus() {
+        val url = if (prefs.settingsUrl.isBlank()) "settings URL: not set" else "settings URL: set"
+        val sync = if (prefs.lastSync == 0L) "never checked"
+                   else "checked " + DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(prefs.lastSync))
+        val perm = if (updater.canInstall()) "installs allowed" else "installs NOT allowed yet"
+        statusView.text = "$url  ·  $sync  ·  $perm"
+        refreshExpiry()
+    }
+
+    /** Subtle IPTV renewal note from the settings file. Muted normally, amber at 14 days, red at 3. */
+    private fun refreshExpiry() {
+        val raw = prefs.lastSettingsJson
+        val exp = try { if (raw.isBlank()) "" else DeviceSettings.parse(raw).iptvExpires } catch (e: Exception) { "" }
+        val date = if (exp.isBlank()) null else try { SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(exp) } catch (e: Exception) { null }
+        if (date == null) { expiryView.visibility = View.GONE; return }
+        val endOfDay = date.time + 86_399_000L
+        val days = Math.floorDiv(endOfDay - System.currentTimeMillis(), 86_400_000L).toInt()
+        val nice = SimpleDateFormat("MMM d", Locale.getDefault()).format(date)
+        expiryView.text = if (days < 0) "IPTV · expired $nice" else "IPTV · renews $nice"
+        expiryView.setTextColor(when {
+            days <= 3 -> Color.parseColor("#FF6B6B")
+            days <= 14 -> Color.parseColor("#E3B341")
+            else -> Color.parseColor("#6F8A99")
+        })
+        expiryView.visibility = View.VISIBLE
+    }
+
+    private fun checkUpdates() {
+        io.launch {
+            val s = SettingsRepository(this@MainActivity).fetch(::logAsync)
+            if (s == null) { logAsync("No settings available yet."); return@launch }
+            prefs.lastSync = System.currentTimeMillis()
+            logAsync("── ${s.deviceName} ──")
+            updater.statuses(s.apps).forEach { logAsync(it.line()) }
+            runOnUiThread { refreshStatus() }
+        }
+    }
+
+    private fun startInstalls() {
+        if (!updater.canInstall()) { askInstallPermission(); return }
+        io.launch {
+            val s = SettingsRepository(this@MainActivity).fetch(::logAsync)
+            if (s == null) { logAsync("No settings available yet."); return@launch }
+            val todo = updater.statuses(s.apps).filter { it.state == "UPDATE" || it.state == "MISSING" }.map { it.app }
+            if (todo.isEmpty()) { logAsync("Everything is up to date."); return@launch }
+            queue.clear()
+            queue.addAll(todo)
+            logAsync("${todo.size} to install. Press Install on each prompt.")
+            runOnUiThread { nextInstall() }
+        }
+    }
+
+    private fun nextInstall() {
+        val app = queue.removeFirstOrNull() ?: return
+        log("get   ${app.name} …")
+        io.launch {
+            val file = updater.download(app)
+            withContext(Dispatchers.Main) {
+                if (file == null) {
+                    log("FAIL  ${app.name}: download error")
+                    nextInstall()
+                } else {
+                    updater.markPending(app)
+                    awaitingInstall = true
+                    try {
+                        startActivity(updater.installIntent(file))
+                    } catch (e: Exception) {
+                        awaitingInstall = false
+                        log("FAIL  ${app.name}: ${e.message}")
+                        nextInstall()
                     }
                 }
             }
         }
+    }
 
-        btnSetup.setOnClickListener {
-            io.launch {
-                val s = SettingsRepository(this@MainActivity).fetch(::logAsync)
-                if (s == null) { logAsync("Setup needs a settings file first."); return@launch }
-
-                logAsync("── Debloat ──")
-                DebloatEngine(this@MainActivity, profile).run(s.disableAlexa, s.blockOtaUpdates, ::logAsync)
-
-                logAsync("── Launcher ──")
-                val li = LauncherInstaller(this@MainActivity)
-                li.install(s.launcherPackage, s.launcherApkUrl, ::logAsync)
-                li.makeDefault(s.launcherPackage, ::logAsync)
-
-                logAsync("── Apps ──")
-                AppReconciler(this@MainActivity).reconcile(s.apps, ::logAsync)
-
-                logAsync("✓ Setup complete. Press HOME.")
-            }
-        }
-
-        btnSync.setOnClickListener {
-            io.launch {
-                val s = SettingsRepository(this@MainActivity).fetch(::logAsync) ?: return@launch
-                AppReconciler(this@MainActivity).reconcile(s.apps, ::logAsync)
-                logAsync("✓ Sync done.")
-            }
-        }
-
-        btnMaint.setOnClickListener {
-            io.launch { MaintenanceTasks.clearCache(this@MainActivity, ::logAsync) }
-        }
-
-        // Wi-Fi works before pairing too — it's just the system settings screen.
-        btnWifi.setOnClickListener {
-            try {
-                startActivity(Intent(Settings.ACTION_WIFI_SETTINGS))
-            } catch (e: ActivityNotFoundException) {
-                try { startActivity(Intent(Settings.ACTION_SETTINGS)) }
-                catch (e2: ActivityNotFoundException) { log("Could not open system settings on this build.") }
-            }
-        }
-
-        btnReset.setOnClickListener {
-            AlertDialog.Builder(this)
-                .setTitle("Are you sure?")
-                .setMessage("This erases this device back to Amazon factory defaults. Custom home screen, all apps and settings will be gone. This cannot be undone, and ADB Debugging will be turned off.")
-                .setNegativeButton("Cancel", null)
-                .setPositiveButton("Yes, reset it") { _, _ ->
-                    log("Factory reset requested…")
-                    io.launch { MaintenanceTasks.factoryReset(this@MainActivity) }
+    private fun askInstallPermission() {
+        AlertDialog.Builder(this)
+            .setTitle("Allow installs")
+            .setMessage("Turn ON 'Install unknown apps' for Galaxy TV Setup on the next screen, then come back and press Install updates.")
+            .setPositiveButton("Open") { _, _ ->
+                try {
+                    startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName")))
+                } catch (e: ActivityNotFoundException) {
+                    log("Could not open that screen. Go to Settings → My Fire TV → Developer Options → Install unknown apps.")
+                    openSystem(Settings.ACTION_SETTINGS)
                 }
-                .show()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun openSystem(action: String) {
+        try {
+            startActivity(Intent(action))
+        } catch (e: ActivityNotFoundException) {
+            try { startActivity(Intent(Settings.ACTION_SETTINGS)) }
+            catch (e2: ActivityNotFoundException) { log("Could not open system settings on this build.") }
         }
     }
 
     private fun askForSettingsUrl() {
-        val input = EditText(this).apply { hint = "https://gist.githubusercontent.com/…/raw/device-settings.json" }
+        val input = EditText(this).apply {
+            hint = "https://gist.githubusercontent.com/…/raw/device-settings.json"
+            setText(prefs.settingsUrl)
+        }
         AlertDialog.Builder(this)
             .setTitle("Settings file URL")
             .setMessage("Paste the RAW link to this device's settings Gist.")
@@ -133,15 +190,12 @@ class MainActivity : AppCompatActivity() {
             .setPositiveButton("Save") { _, _ ->
                 prefs.settingsUrl = input.text.toString().trim()
                 log("settings URL saved")
+                refreshStatus()
             }
+            .setNegativeButton("Cancel", null)
             .show()
     }
 
-    private fun log(line: String) {
-        logView.append("\n$line")
-    }
-
-    private fun logAsync(line: String) {
-        runOnUiThread { log(line) }
-    }
+    private fun log(line: String) { logView.append("\n$line") }
+    private fun logAsync(line: String) { runOnUiThread { log(line) } }
 }

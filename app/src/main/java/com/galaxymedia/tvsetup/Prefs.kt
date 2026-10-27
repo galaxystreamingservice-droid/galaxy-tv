@@ -13,14 +13,30 @@ class Prefs(ctx: Context) {
         get() = sp.getString("lastSettings", "") ?: ""
         set(v) = sp.edit().putString("lastSettings", v).apply()
 
-    var paired: Boolean
-        get() = sp.getBoolean("paired", false)
-        set(v) = sp.edit().putBoolean("paired", v).apply()
-
-    var lastOpenedApp: String
-        get() = sp.getString("lastApp", "") ?: ""
-        set(v) = sp.edit().putString("lastApp", v).apply()
+    var lastSync: Long
+        get() = sp.getLong("lastSync", 0L)
+        set(v) = sp.edit().putLong("lastSync", v).apply()
 
     fun getAppVersion(pkg: String) = sp.getInt("ver_$pkg", 0)
     fun setAppVersion(pkg: String, v: Int) = sp.edit().putInt("ver_$pkg", v).apply()
+
+    // Installs we handed to the system installer and are waiting to confirm.
+    fun pendingPackages(): Set<String> = sp.getStringSet("pend_set", emptySet()) ?: emptySet()
+
+    fun markPending(pkg: String, version: Int, startedAt: Long) {
+        val set = pendingPackages().toMutableSet().apply { add(pkg) }
+        sp.edit()
+            .putStringSet("pend_set", set)
+            .putInt("pend_ver_$pkg", version)
+            .putLong("pend_ts_$pkg", startedAt)
+            .apply()
+    }
+
+    fun pendingVersion(pkg: String) = sp.getInt("pend_ver_$pkg", 0)
+    fun pendingStartedAt(pkg: String) = sp.getLong("pend_ts_$pkg", 0L)
+
+    fun clearPending(pkg: String) {
+        val set = pendingPackages().toMutableSet().apply { remove(pkg) }
+        sp.edit().putStringSet("pend_set", set).apply()
+    }
 }

@@ -29,12 +29,27 @@
             android:textSize="16sp"
             android:textColor="#7FD8E8" />
 
-        <Button android:id="@+id/btnPair"  android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="28dp" android:text="@string/btn_pair" />
-        <Button android:id="@+id/btnSetup" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="@string/btn_setup" android:enabled="false" />
-        <Button android:id="@+id/btnSync"  android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="@string/btn_sync" android:enabled="false" />
-        <Button android:id="@+id/btnMaint" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="@string/btn_maint" android:enabled="false" />
-        <Button android:id="@+id/btnWifi"  android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="@string/btn_wifi" />
-        <Button android:id="@+id/btnReset" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="28dp" android:text="@string/btn_reset" android:enabled="false" android:textColor="#FF6B6B" />
+        <TextView
+            android:id="@+id/status"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:textSize="14sp"
+            android:textColor="#9FC3D4" />
+
+        <TextView
+            android:id="@+id/expiry"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textSize="12sp"
+            android:visibility="gone" />
+
+        <Button android:id="@+id/btnCheck"   android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="24dp" android:text="Check for updates" />
+        <Button android:id="@+id/btnInstall" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="10dp" android:text="Install updates" />
+        <Button android:id="@+id/btnUrl"     android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="10dp" android:text="Set settings file URL" />
+        <Button android:id="@+id/btnWifi"    android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="10dp" android:text="Change Wi-Fi / network" />
+        <Button android:id="@+id/btnSystem"  android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="10dp" android:text="Open system settings (reset lives here)" />
     </LinearLayout>
 
     <ScrollView
@@ -51,6 +66,6 @@
             android:textSize="13sp"
             android:fontFamily="monospace"
             android:textColor="#BFEAFF"
-            android:text="@string/status_idle" />
+            android:text="Ready." />
     </ScrollView>
 </LinearLayout>
