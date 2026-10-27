@@ -188,8 +188,10 @@ class MainActivity : AppCompatActivity() {
             .setMessage("Paste the RAW link to this device's settings Gist.")
             .setView(input)
             .setPositiveButton("Save") { _, _ ->
-                prefs.settingsUrl = input.text.toString().trim()
-                log("settings URL saved")
+                val url = input.text.toString().trim()
+                prefs.settingsUrl = url
+                if (url.isBlank()) log("settings URL is EMPTY - nothing was pasted. Try again.")
+                else log("settings URL saved (${url.length} chars, ends …${url.takeLast(20)})")
                 refreshStatus()
             }
             .setNegativeButton("Cancel", null)
