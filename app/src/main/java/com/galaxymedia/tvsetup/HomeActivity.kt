@@ -28,6 +28,7 @@ import android.widget.LinearLayout
 import android.widget.TextClock
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import com.galaxymedia.tvsetup.model.DeviceSettings
 import kotlinx.coroutines.CoroutineScope
@@ -101,6 +102,10 @@ class HomeActivity : AppCompatActivity() {
         prefs = Prefs(this)
         updater = AppUpdater(this, prefs)
         setContentView(buildUi())
+        // Back stays on this screen. The remote's Home button still leaves, as it always does on Fire TV.
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() { /* stay on the Galaxy Media home screen */ }
+        })
         loadStoredSettings()
         rebuildAll()
         shelfRow.post { shelfRow.getChildAt(0)?.requestFocus() }
