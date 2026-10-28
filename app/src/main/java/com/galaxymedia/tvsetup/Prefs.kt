@@ -25,6 +25,18 @@ class Prefs(ctx: Context) {
         get() = sp.getBoolean("namePrompted", false)
         set(v) = sp.edit().putBoolean("namePrompted", v).apply()
 
+    var accent: String
+        get() = sp.getString("accent", "cyan") ?: "cyan"
+        set(v) = sp.edit().putString("accent", v).apply()
+
+    var wallpaper: String
+        get() = sp.getString("wallpaper", "stars") ?: "stars"
+        set(v) = sp.edit().putString("wallpaper", v).apply()
+
+    var team: String
+        get() = sp.getString("team", "cowboys") ?: "cowboys"
+        set(v) = sp.edit().putString("team", v).apply()
+
     fun getAppVersion(pkg: String) = sp.getInt("ver_$pkg", 0)
     fun setAppVersion(pkg: String, v: Int) = sp.edit().putInt("ver_$pkg", v).apply()
 

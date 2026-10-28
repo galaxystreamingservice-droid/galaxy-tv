@@ -63,6 +63,10 @@ class HomeActivity : AppCompatActivity() {
     private lateinit var shelfRow: LinearLayout
     private lateinit var hintView: TextView
     private var gearView: GearView? = null
+    private lateinit var bgHolder: FrameLayout
+    private lateinit var centerTitle: View
+    private var appliedAccent = ""
+    private var appliedBackground = ""
 
     private var settings: DeviceSettings? = null
     private var selfUpdateVersion: String? = null
@@ -80,7 +84,7 @@ class HomeActivity : AppCompatActivity() {
     private val cardColor = Color.parseColor("#0F1C2E")
     private val textColor = Color.parseColor("#EAF6FF")
     private val mutedColor = Color.parseColor("#9FB8C8")
-    private val accent = Color.parseColor("#22D3EE")
+    private var accent = Color.parseColor("#22D3EE")
     private val green = Color.parseColor("#6BF0A0")
     private val amber = Color.parseColor("#E3B341")
     private val red = Color.parseColor("#FF6B6B")
@@ -107,6 +111,7 @@ class HomeActivity : AppCompatActivity() {
             override fun handleOnBackPressed() { /* stay on the Galaxy Media home screen */ }
         })
         loadStoredSettings()
+        applyTheme()
         rebuildAll()
         shelfRow.post { shelfRow.getChildAt(0)?.requestFocus() }
         if (!prefs.namePrompted) askName()
@@ -115,6 +120,7 @@ class HomeActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         loadStoredSettings()
+        applyTheme()
         rebuildAll()
         handler.removeCallbacks(tick)
         handler.postDelayed(tick, 15_000)
@@ -134,7 +140,8 @@ class HomeActivity : AppCompatActivity() {
             clipChildren = false
             clipToPadding = false
         }
-        root.addView(StarfieldView(this), FrameLayout.LayoutParams(MATCH, MATCH))
+        bgHolder = FrameLayout(this)
+        root.addView(bgHolder, FrameLayout.LayoutParams(MATCH, MATCH))
 
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -176,20 +183,26 @@ class HomeActivity : AppCompatActivity() {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
         }
-        center.addView(TextView(this).apply {
+        val titleBox = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+        }
+        centerTitle = titleBox
+        titleBox.addView(TextView(this).apply {
             text = "GALAXY MEDIA"
             textSize = 40f
             letterSpacing = 0.12f
             setTextColor(textColor)
             gravity = Gravity.CENTER
         })
-        center.addView(TextView(this).apply {
+        titleBox.addView(TextView(this).apply {
             text = "FAMILY EDITION"
             textSize = 14f
             letterSpacing = 0.3f
             setTextColor(Color.parseColor("#7FD8E8"))
             gravity = Gravity.CENTER
         })
+        center.addView(titleBox)
         hintView = TextView(this).apply {
             textSize = 16f
             setTextColor(mutedColor)
@@ -219,6 +232,33 @@ class HomeActivity : AppCompatActivity() {
 
         root.addView(content, FrameLayout.LayoutParams(MATCH, MATCH))
         return root
+    }
+
+    // ───────────────────────── theme (from Settings) ─────────────────────────
+
+    private fun applyTheme() {
+        if (appliedAccent != prefs.accent) {
+            appliedAccent = prefs.accent
+            accent = Themes.accentColor(prefs.accent)
+            chipSignature = ""
+            shelfSignature = ""
+        }
+        val bgKey = prefs.wallpaper + ":" + prefs.team
+        if (appliedBackground != bgKey) {
+            appliedBackground = bgKey
+            bgHolder.removeAllViews()
+            val v: View? = when (prefs.wallpaper) {
+                "logo" -> ImageView(this).apply {
+                    scaleType = ImageView.ScaleType.CENTER_CROP
+                    setImageResource(R.drawable.galaxy_background)
+                }
+                "team" -> TeamBgView(this, Themes.team(prefs.team))
+                "plain" -> null
+                else -> StarfieldView(this)
+            }
+            if (v != null) bgHolder.addView(v, FrameLayout.LayoutParams(MATCH, MATCH))
+            centerTitle.visibility = if (prefs.wallpaper == "logo") View.GONE else View.VISIBLE
+        }
     }
 
     // ───────────────────────── data ─────────────────────────
@@ -471,8 +511,8 @@ class HomeActivity : AppCompatActivity() {
     private fun showMenu() {
         AlertDialog.Builder(this)
             .setTitle("Galaxy Media")
-            .setItems(arrayOf("Setup & updates", "Change my name")) { _, which ->
-                if (which == 0) openSetup() else askName()
+            .setItems(arrayOf("Settings", "Setup & updates")) { _, which ->
+                if (which == 0) startActivity(Intent(this, SettingsActivity::class.java)) else openSetup()
             }
             .setNegativeButton("Close", null)
             .show()
@@ -514,6 +554,26 @@ class HomeActivity : AppCompatActivity() {
                 paint.alpha = (s[3] * 255).toInt()
                 canvas.drawCircle(s[0] * width, s[1] * height, s[2] * d, paint)
             }
+        }
+    }
+
+    /** Team-color wallpaper: team color fill, big faint team name, bottom stripe. No logos. */
+    private class TeamBgView(ctx: Context, private val team: Themes.TeamTheme) : View(ctx) {
+        private val namePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = team.stripe
+            alpha = 40
+            textAlign = Paint.Align.CENTER
+            letterSpacing = 0.08f
+            typeface = Typeface.DEFAULT_BOLD
+        }
+        private val stripePaint = Paint().apply { color = team.stripe }
+
+        override fun onDraw(canvas: Canvas) {
+            canvas.drawColor(team.bg)
+            namePaint.textSize = height * 0.26f
+            canvas.drawText(team.name.uppercase(), width / 2f, height * 0.58f, namePaint)
+            val d = resources.displayMetrics.density
+            canvas.drawRect(0f, height - 8f * d, width.toFloat(), height.toFloat(), stripePaint)
         }
     }
 
