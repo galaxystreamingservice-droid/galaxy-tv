@@ -28,6 +28,7 @@ import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextClock
 import android.widget.TextView
 import android.widget.Toast
@@ -40,6 +41,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
 import java.util.Locale
 import kotlin.math.PI
 import kotlin.math.cos
@@ -64,16 +66,20 @@ class HomeActivity : AppCompatActivity() {
     private lateinit var greetingView: TextView
     private lateinit var chipRow: LinearLayout
     private lateinit var shelfRow: LinearLayout
+    private lateinit var bottomScroll: HorizontalScrollView
+    private lateinit var railScroll: ScrollView
     private lateinit var hintView: TextView
     private var gearView: GearView? = null
     private lateinit var bgHolder: FrameLayout
     private lateinit var centerTitle: View
+    private lateinit var tonightView: TextView
     private lateinit var sportsBox: LinearLayout
     private lateinit var sportsText: TextView
     private var sportsSignature = ""
     private var sportsBusy = false
     private var appliedAccent = ""
     private var appliedBackground = ""
+    private var appliedShelf = ""
 
     private var settings: DeviceSettings? = null
     private var selfUpdateVersion: String? = null
@@ -154,7 +160,7 @@ class HomeActivity : AppCompatActivity() {
 
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(56), dp(36), dp(56), dp(40))   // safe margins
+            setPadding(dp(56), dp(36), dp(56), dp(40)) // safe margins
             clipChildren = false
             clipToPadding = false
         }
@@ -187,7 +193,23 @@ class HomeActivity : AppCompatActivity() {
         top.addView(chipRow, LinearLayout.LayoutParams(WRAP, WRAP))
         content.addView(top, LinearLayout.LayoutParams(MATCH, WRAP))
 
-        // Center: title (and a hint when setup isn't finished)
+        // Middle: optional left rail for the shelf, then the centre title area
+        val middle = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            clipChildren = false
+            clipToPadding = false
+        }
+        railScroll = ScrollView(this).apply {
+            isVerticalScrollBarEnabled = false
+            isFillViewport = true
+            overScrollMode = View.OVER_SCROLL_NEVER
+            clipChildren = false
+            clipToPadding = false
+            visibility = View.GONE
+        }
+        middle.addView(railScroll, LinearLayout.LayoutParams(WRAP, MATCH))
+
+        // Center: title, the "Tonight" label, and a hint when setup isn't finished
         val center = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
@@ -212,6 +234,15 @@ class HomeActivity : AppCompatActivity() {
             gravity = Gravity.CENTER
         })
         center.addView(titleBox)
+        // Display only: not focusable, so the remote skips it and nobody thinks it opens the game.
+        tonightView = TextView(this).apply {
+            textSize = 18f
+            setTextColor(textColor)
+            gravity = Gravity.CENTER
+            setPadding(0, dp(14), 0, 0)
+            visibility = View.GONE
+        }
+        center.addView(tonightView)
         hintView = TextView(this).apply {
             textSize = 16f
             setTextColor(mutedColor)
@@ -219,7 +250,8 @@ class HomeActivity : AppCompatActivity() {
             setPadding(0, dp(16), 0, 0)
         }
         center.addView(hintView)
-        content.addView(center, LinearLayout.LayoutParams(MATCH, 0, 1f))
+        middle.addView(center, LinearLayout.LayoutParams(0, MATCH, 1f))
+        content.addView(middle, LinearLayout.LayoutParams(MATCH, 0, 1f))
 
         // Sports strip (scrolls sideways by itself; hidden when off or when there are no games)
         sportsText = TextView(this).apply {
@@ -246,8 +278,8 @@ class HomeActivity : AppCompatActivity() {
         sportsBox.addView(sportsText, LinearLayout.LayoutParams(MATCH, WRAP))
         content.addView(sportsBox, LinearLayout.LayoutParams(MATCH, WRAP).apply { bottomMargin = dp(6) })
 
-        // Bottom: app shelf
-        val scroll = HorizontalScrollView(this).apply {
+        // Bottom: app shelf (the same shelfRow moves to the left rail when Settings says so)
+        bottomScroll = HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = false
             isFillViewport = true
             overScrollMode = View.OVER_SCROLL_NEVER
@@ -261,11 +293,25 @@ class HomeActivity : AppCompatActivity() {
             clipToPadding = false
             setPadding(dp(8), dp(14), dp(8), dp(14))
         }
-        scroll.addView(shelfRow, FrameLayout.LayoutParams(MATCH, WRAP))
-        content.addView(scroll, LinearLayout.LayoutParams(MATCH, WRAP))
+        content.addView(bottomScroll, LinearLayout.LayoutParams(MATCH, WRAP))
 
         root.addView(content, FrameLayout.LayoutParams(MATCH, MATCH))
         return root
+    }
+
+    /** Moves the shelf between the bottom row and the left rail when the setting changes. */
+    private fun placeShelf() {
+        if (appliedShelf == prefs.shelf) return
+        appliedShelf = prefs.shelf
+        val left = prefs.shelf == "left"
+        (shelfRow.parent as? ViewGroup)?.removeView(shelfRow)
+        railScroll.visibility = if (left) View.VISIBLE else View.GONE
+        bottomScroll.visibility = if (left) View.GONE else View.VISIBLE
+        shelfRow.orientation = if (left) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
+        shelfRow.gravity = if (left) Gravity.CENTER_VERTICAL else Gravity.CENTER
+        if (left) railScroll.addView(shelfRow, FrameLayout.LayoutParams(WRAP, WRAP))
+        else bottomScroll.addView(shelfRow, FrameLayout.LayoutParams(MATCH, WRAP))
+        shelfSignature = ""
     }
 
     // ───────────────────────── sports strip ─────────────────────────
@@ -285,31 +331,55 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun updateSports() {
-        val games = SportsRepository.games
-        if (prefs.sports == "off" || games.isEmpty()) {
+        val mode = prefs.sports
+        val keys = prefs.myTeamKeys
+        val shown: List<Game> = when (mode) {
+            "off" -> emptyList()
+            "my" -> SportsRepository.games.filter { it.homeKey in keys || it.awayKey in keys }
+            else -> SportsRepository.games
+        }
+        updateTonight(if (mode == "my") shown else emptyList())
+        if (shown.isEmpty()) {
             sportsBox.visibility = View.GONE
             sportsSignature = ""
             return
         }
-        val sig = games.joinToString("|") { it.league + it.text }
+        val sig = mode + "#" + shown.joinToString("|") { it.league + it.text }
         if (sig == sportsSignature && sportsBox.visibility == View.VISIBLE) return
         sportsSignature = sig
         val sb = SpannableStringBuilder()
-        for (g in games.take(40)) {
+        for (g in shown.take(40)) {
             if (g.state == "in") {
                 val s = sb.length
                 sb.append("● ")
                 sb.setSpan(ForegroundColorSpan(red), s, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
             }
             val s2 = sb.length
-            sb.append(g.league).append("  ")
+            sb.append(g.league).append(" ")
             sb.setSpan(ForegroundColorSpan(accent), s2, s2 + g.league.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-            sb.append(g.text).append("          ")
+            sb.append(g.text).append(" ")
         }
         sportsText.text = sb
         sportsText.isSelected = false
         sportsText.isSelected = true
         sportsBox.visibility = View.VISIBLE
+    }
+
+    /** "TONIGHT  Cowboys · Sun 3:25 PM": team, day and time only. Display only, never selectable. */
+    private fun updateTonight(mine: List<Game>) {
+        // Games are already sorted live first, then by start time.
+        val g = mine.firstOrNull { it.state != "post" }
+        if (g == null || g.start == 0L) {
+            tonightView.visibility = View.GONE
+            return
+        }
+        val team = if (g.homeKey in prefs.myTeamKeys) g.homeName else g.awayName
+        val whenStr = SimpleDateFormat("EEE h:mm a", Locale.getDefault()).format(Date(g.start))
+        val sb = SpannableStringBuilder("TONIGHT  ")
+        sb.setSpan(ForegroundColorSpan(accent), 0, 7, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        sb.append(team).append(" · ").append(whenStr)
+        tonightView.text = sb
+        tonightView.visibility = View.VISIBLE
     }
 
     // ───────────────────────── theme (from Settings) ─────────────────────────
@@ -320,6 +390,7 @@ class HomeActivity : AppCompatActivity() {
             accent = Themes.accentColor(prefs.accent)
             chipSignature = ""
             shelfSignature = ""
+            sportsSignature = ""
         }
         val bgKey = prefs.wallpaper + ":" + prefs.team
         if (appliedBackground != bgKey) {
@@ -378,6 +449,7 @@ class HomeActivity : AppCompatActivity() {
         updateGreeting()
         rebuildChips()
         rebuildShelf()
+        updateSports()
     }
 
     private fun updateGreeting() {
@@ -442,8 +514,9 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun rebuildShelf() {
+        placeShelf()
         val apps = settings?.apps?.filter { it.pinned } ?: emptyList()
-        val sig = apps.joinToString("|") { it.packageName + updater.isInstalled(it.packageName) }
+        val sig = prefs.shelf + "#" + apps.joinToString("|") { it.packageName + updater.isInstalled(it.packageName) }
         if (sig == shelfSignature && shelfRow.childCount > 0) return
         shelfSignature = sig
 
@@ -469,8 +542,13 @@ class HomeActivity : AppCompatActivity() {
 
     // ───────────────────────── pieces ─────────────────────────
 
-    private fun tileParams() = LinearLayout.LayoutParams(dp(136), dp(108)).apply {
-        marginStart = dp(8); marginEnd = dp(8)
+    private fun tileParams(): LinearLayout.LayoutParams {
+        return if (prefs.shelf == "left") {
+            // Shorter tiles in the rail so about four fit on screen; the rail scrolls for the rest.
+            LinearLayout.LayoutParams(dp(136), dp(84)).apply { topMargin = dp(4); bottomMargin = dp(4) }
+        } else {
+            LinearLayout.LayoutParams(dp(136), dp(108)).apply { marginStart = dp(8); marginEnd = dp(8) }
+        }
     }
 
     private fun makeTile(label: String, icon: Drawable?, glyph: String, tag: String, onClick: () -> Unit): View {

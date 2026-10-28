@@ -37,9 +37,24 @@ class Prefs(ctx: Context) {
         get() = sp.getString("team", "cowboys") ?: "cowboys"
         set(v) = sp.edit().putString("team", v).apply()
 
+    /** "off", "my" (my teams only) or "all" (all games today). */
     var sports: String
         get() = sp.getString("sports", "all") ?: "all"
         set(v) = sp.edit().putString("sports", v).apply()
+
+    /** "bottom" (row along the bottom) or "left" (rail down the left side). */
+    var shelf: String
+        get() = sp.getString("shelf", "bottom") ?: "bottom"
+        set(v) = sp.edit().putString("shelf", v).apply()
+
+    /** Favorite teams, one entry each like "NFL:DAL|Cowboys" (league:abbreviation|name). */
+    var myTeams: Set<String>
+        get() = sp.getStringSet("myTeams", emptySet())?.toSet() ?: emptySet()
+        set(v) = sp.edit().putStringSet("myTeams", v.toSet()).apply()
+
+    /** Just the "NFL:DAL" part of each favorite team, for matching against games. */
+    val myTeamKeys: Set<String>
+        get() = myTeams.map { it.substringBefore('|') }.toSet()
 
     fun getAppVersion(pkg: String) = sp.getInt("ver_$pkg", 0)
     fun setAppVersion(pkg: String, v: Int) = sp.edit().putInt("ver_$pkg", v).apply()

@@ -9,8 +9,20 @@ import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
 
-/** One game on the scrolling strip. state: "in" (live), "pre" (upcoming), "post" (final). */
-data class Game(val league: String, val text: String, val state: String, val start: Long)
+/**
+ * One game on the scrolling strip. state: "in" (live), "pre" (upcoming), "post" (final).
+ * homeKey/awayKey look like "NFL:DAL" and match the favorite teams saved in Prefs (empty for UFC).
+ */
+data class Game(
+    val league: String,
+    val text: String,
+    val state: String,
+    val start: Long,
+    val homeKey: String = "",
+    val awayKey: String = "",
+    val homeName: String = "",
+    val awayName: String = ""
+)
 
 /**
  * Today's games from ESPN's public scoreboard feed (free, no login, but unofficial:
@@ -34,6 +46,26 @@ object SportsRepository {
     @Volatile var lastFetch = 0L
     @Volatile private var lastGood = 0L
 
+    /** Leagues that have teams to pick (everything except UFC). */
+    fun teamLeagueLabels(): List<String> = leagues.filter { it.label != "UFC" }.map { it.label }
+
+    /** Teams of one league as (abbreviation, name) pairs, sorted by name. Throws if ESPN can't be reached. */
+    fun fetchTeams(label: String): List<Pair<String, String>> {
+        val l = leagues.firstOrNull { it.label == label } ?: return emptyList()
+        val body = httpGet("https://site.api.espn.com/apis/site/v2/sports/${l.sport}/${l.key}/teams?limit=100")
+        val arr = JSONObject(body).optJSONArray("sports")?.optJSONObject(0)
+            ?.optJSONArray("leagues")?.optJSONObject(0)
+            ?.optJSONArray("teams") ?: return emptyList()
+        val out = mutableListOf<Pair<String, String>>()
+        for (i in 0 until arr.length()) {
+            val t = arr.optJSONObject(i)?.optJSONObject("team") ?: continue
+            val abbr = t.optString("abbreviation", "")
+            val name = t.optString("shortDisplayName", "").ifBlank { t.optString("displayName", "") }
+            if (abbr.isNotBlank() && name.isNotBlank()) out += abbr to name
+        }
+        return out.sortedBy { it.second }
+    }
+
     fun fetchAll(): List<Game> {
         val out = mutableListOf<Game>()
         var anyOk = false
@@ -46,21 +78,25 @@ object SportsRepository {
             lastGood = now
             games = out.sortedWith(compareBy<Game>({ order(it.state) }, { it.start }))
         } else if (now - lastGood > 30 * 60 * 1000L) {
-            games = emptyList()   // keep the last good list for a while, then give up quietly
+            games = emptyList() // keep the last good list for a while, then give up quietly
         }
         return games
     }
 
     private fun order(state: String) = when (state) { "in" -> 0; "pre" -> 1; else -> 2 }
 
-    private fun fetchLeague(l: League): List<Game> {
-        val url = "https://site.api.espn.com/apis/site/v2/sports/${l.sport}/${l.key}/scoreboard"
+    private fun httpGet(url: String): String {
         val conn = (URL(url).openConnection() as HttpURLConnection).apply {
             connectTimeout = 8000
             readTimeout = 8000
             setRequestProperty("User-Agent", "galaxy-media")
         }
-        val body = conn.inputStream.bufferedReader().use { it.readText() }
+        return conn.inputStream.bufferedReader().use { it.readText() }
+    }
+
+    private fun fetchLeague(l: League): List<Game> {
+        val url = "https://site.api.espn.com/apis/site/v2/sports/${l.sport}/${l.key}/scoreboard"
+        val body = httpGet(url)
         val events = JSONObject(body).optJSONArray("events") ?: return emptyList()
         val now = System.currentTimeMillis()
         val out = mutableListOf<Game>()
@@ -77,6 +113,10 @@ object SportsRepository {
             if (state != "in" && !inWindow) continue
 
             val text: String
+            var homeKey = ""
+            var awayKey = ""
+            var homeName = ""
+            var awayName = ""
             if (l.label == "UFC") {
                 val name = ev.optString("shortName", "").ifBlank { ev.optString("name", "") }
                 if (name.isBlank()) continue
@@ -89,22 +129,28 @@ object SportsRepository {
                 val comp = ev.optJSONArray("competitions")?.optJSONObject(0) ?: continue
                 val cs = comp.optJSONArray("competitors") ?: continue
                 var home = ""; var away = ""; var homeScore = ""; var awayScore = ""
+                var homeAbbr = ""; var awayAbbr = ""
                 for (j in 0 until cs.length()) {
                     val c = cs.optJSONObject(j) ?: continue
                     val team = c.optJSONObject("team")
+                    val abbr = team?.optString("abbreviation", "").orEmpty()
                     val name = team?.optString("shortDisplayName", "").orEmpty()
-                        .ifBlank { team?.optString("abbreviation", "").orEmpty() }
+                        .ifBlank { abbr }
                     val score = c.optString("score", "")
-                    if (c.optString("homeAway") == "home") { home = name; homeScore = score }
-                    else { away = name; awayScore = score }
+                    if (c.optString("homeAway") == "home") { home = name; homeScore = score; homeAbbr = abbr }
+                    else { away = name; awayScore = score; awayAbbr = abbr }
                 }
                 if (home.isBlank() || away.isBlank()) continue
+                homeKey = "${l.label}:$homeAbbr"
+                awayKey = "${l.label}:$awayAbbr"
+                homeName = home
+                awayName = away
                 text = when (state) {
                     "pre" -> "$away @ $home · ${whenText(start)}"
                     else -> "$away $awayScore, $home $homeScore · ${if (state == "post") detail.ifBlank { "Final" } else detail}"
                 }
             }
-            out += Game(l.label, text, state, start)
+            out += Game(l.label, text, state, start, homeKey, awayKey, homeName, awayName)
         }
         return out
     }

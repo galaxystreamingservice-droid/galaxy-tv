@@ -17,10 +17,11 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 
 /**
- * "My Galaxy" settings: name, accent color, background, team colors.
+ * "My Galaxy" settings: name, accent color, sports, my teams, shelf position, background, team colors.
  * Every row is one big button: press it to change the value or cycle to the next one.
  * Changes show on the home screen as soon as you go back.
  */
@@ -41,6 +42,7 @@ class SettingsActivity : AppCompatActivity() {
     companion object {
         private const val MATCH = ViewGroup.LayoutParams.MATCH_PARENT
         private const val WRAP = ViewGroup.LayoutParams.WRAP_CONTENT
+        private val sportsModes = listOf("off", "my", "all")
     }
 
     private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
@@ -91,14 +93,36 @@ class SettingsActivity : AppCompatActivity() {
         return root
     }
 
+    private fun sportsName(mode: String): String = when (mode) {
+        "off" -> "Off"
+        "my" -> "My teams"
+        else -> "All games today"
+    }
+
+    private fun teamsSummary(): String {
+        val names = prefs.myTeams.map { it.substringAfter('|') }.sorted()
+        return when {
+            names.isEmpty() -> "None picked"
+            names.size <= 2 -> names.joinToString(", ")
+            else -> "${names.size} teams"
+        }
+    }
+
     private fun rows(): List<Row> {
         val out = mutableListOf<Row>()
         out += Row("Name", prefs.userName.ifBlank { "Not set" }, false) { askName() }
         out += Row("Accent color", Themes.accentName(prefs.accent), true) {
             prefs.accent = Themes.next(Themes.accentKeys, prefs.accent)
         }
-        out += Row("Sports", if (prefs.sports == "off") "Off" else "All games today", true) {
-            prefs.sports = if (prefs.sports == "off") "all" else "off"
+        out += Row("Sports", sportsName(prefs.sports), true) {
+            prefs.sports = Themes.next(sportsModes, prefs.sports)
+        }
+        if (prefs.sports == "my") {
+            val idx = out.size
+            out += Row("My teams", teamsSummary(), false) { pickLeague(idx) }
+        }
+        out += Row("Shelf position", if (prefs.shelf == "left") "Left rail" else "Bottom row", true) {
+            prefs.shelf = if (prefs.shelf == "left") "bottom" else "left"
         }
         out += Row("Background", Themes.wallpaperName(prefs.wallpaper), true) {
             prefs.wallpaper = Themes.next(Themes.wallpaperKeys, prefs.wallpaper)
@@ -163,6 +187,49 @@ class SettingsActivity : AppCompatActivity() {
             }
             .setNegativeButton("Cancel", null)
             .show()
+    }
+
+    // ── my teams: pick a league, then tick the teams you follow ──
+
+    private fun pickLeague(rowIndex: Int) {
+        val labels = SportsRepository.teamLeagueLabels()
+        AlertDialog.Builder(this)
+            .setTitle("Pick a league")
+            .setItems(labels.toTypedArray()) { _, i -> loadTeams(labels[i], rowIndex) }
+            .setNeutralButton("Clear all") { _, _ ->
+                prefs.myTeams = emptySet()
+                render(rowIndex)
+            }
+            .setNegativeButton("Close") { _, _ -> render(rowIndex) }
+            .show()
+    }
+
+    private fun loadTeams(label: String, rowIndex: Int) {
+        Toast.makeText(this, "Loading $label teams...", Toast.LENGTH_SHORT).show()
+        Thread {
+            val teams = try { SportsRepository.fetchTeams(label) } catch (e: Exception) { emptyList() }
+            runOnUiThread {
+                if (isFinishing) return@runOnUiThread
+                if (teams.isEmpty()) {
+                    Toast.makeText(this, "Couldn't load teams. Check the Wi-Fi and try again.", Toast.LENGTH_LONG).show()
+                    return@runOnUiThread
+                }
+                val keys = teams.map { "$label:${it.first}" }
+                val current = prefs.myTeamKeys
+                val checked = BooleanArray(teams.size) { i -> keys[i] in current }
+                AlertDialog.Builder(this)
+                    .setTitle("$label teams")
+                    .setMultiChoiceItems(teams.map { it.second }.toTypedArray(), checked) { _, i, on -> checked[i] = on }
+                    .setPositiveButton("Save") { _, _ ->
+                        val keep = prefs.myTeams.filter { !it.startsWith("$label:") }.toMutableSet()
+                        teams.forEachIndexed { i, t -> if (checked[i]) keep += "$label:${t.first}|${t.second}" }
+                        prefs.myTeams = keep
+                        render(rowIndex)
+                    }
+                    .setNegativeButton("Cancel", null)
+                    .show()
+            }
+        }.start()
     }
 
     // ── focus highlight, same as the home screen: solid accent fill, white ring, black outer ring ──
