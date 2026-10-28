@@ -17,6 +17,14 @@ class Prefs(ctx: Context) {
         get() = sp.getLong("lastSync", 0L)
         set(v) = sp.edit().putLong("lastSync", v).apply()
 
+    var userName: String
+        get() = sp.getString("userName", "") ?: ""
+        set(v) = sp.edit().putString("userName", v).apply()
+
+    var namePrompted: Boolean
+        get() = sp.getBoolean("namePrompted", false)
+        set(v) = sp.edit().putBoolean("namePrompted", v).apply()
+
     fun getAppVersion(pkg: String) = sp.getInt("ver_$pkg", 0)
     fun setAppVersion(pkg: String, v: Int) = sp.edit().putInt("ver_$pkg", v).apply()
 
