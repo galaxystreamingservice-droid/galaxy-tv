@@ -243,12 +243,18 @@ class MainActivity : AppCompatActivity() {
             "${statusView.text}\n\n" +
             "APPS  ([x] installed)\n$appLines\n\n" +
             "LOG\n$lastLog"
-        val tv = TextView(this).apply { text = report; textSize = 18f; setPadding(48, 32, 48, 32) }
-        AlertDialog.Builder(this)
-            .setTitle("Diagnostics - take a photo of this screen")
-            .setView(ScrollView(this).apply { addView(tv) })
+        val dark = Color.parseColor("#0A1522")
+        val tv = TextView(this).apply {
+            text = report; textSize = 18f; setPadding(48, 32, 48, 32)
+            setTextColor(Color.parseColor("#EAF6FF")); setBackgroundColor(dark)
+        }
+        val dlg = AlertDialog.Builder(this)
+            .setTitle("Diagnostics v${currentVersion()} - take a photo")
+            .setView(ScrollView(this).apply { setBackgroundColor(dark); addView(tv) })
             .setPositiveButton("Close", null)
-            .show()
+            .create()
+        dlg.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(dark))
+        dlg.show()
     }
 
     private fun log(line: String) { logView.append("\n$line") }
