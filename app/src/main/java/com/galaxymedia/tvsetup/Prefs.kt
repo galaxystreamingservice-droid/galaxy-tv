@@ -37,6 +37,10 @@ class Prefs(ctx: Context) {
         get() = sp.getString("team", "cowboys") ?: "cowboys"
         set(v) = sp.edit().putString("team", v).apply()
 
+    var sports: String
+        get() = sp.getString("sports", "all") ?: "all"
+        set(v) = sp.edit().putString("sports", v).apply()
+
     fun getAppVersion(pkg: String) = sp.getInt("ver_$pkg", 0)
     fun setAppVersion(pkg: String, v: Int) = sp.edit().putInt("ver_$pkg", v).apply()
 

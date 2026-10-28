@@ -16,7 +16,10 @@ import android.net.NetworkCapabilities
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.text.SpannableStringBuilder
+import android.text.Spanned
 import android.text.TextUtils
+import android.text.style.ForegroundColorSpan
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -65,6 +68,10 @@ class HomeActivity : AppCompatActivity() {
     private var gearView: GearView? = null
     private lateinit var bgHolder: FrameLayout
     private lateinit var centerTitle: View
+    private lateinit var sportsBox: LinearLayout
+    private lateinit var sportsText: TextView
+    private var sportsSignature = ""
+    private var sportsBusy = false
     private var appliedAccent = ""
     private var appliedBackground = ""
 
@@ -97,6 +104,7 @@ class HomeActivity : AppCompatActivity() {
         override fun run() {
             updateGreeting()
             rebuildChips()
+            refreshSports()
             handler.postDelayed(this, 15_000)
         }
     }
@@ -125,6 +133,7 @@ class HomeActivity : AppCompatActivity() {
         handler.removeCallbacks(tick)
         handler.postDelayed(tick, 15_000)
         refreshFromNetwork()
+        refreshSports()
     }
 
     override fun onPause() {
@@ -212,6 +221,31 @@ class HomeActivity : AppCompatActivity() {
         center.addView(hintView)
         content.addView(center, LinearLayout.LayoutParams(MATCH, 0, 1f))
 
+        // Sports strip (scrolls sideways by itself; hidden when off or when there are no games)
+        sportsText = TextView(this).apply {
+            textSize = 16f
+            setTextColor(textColor)
+            setSingleLine(true)
+            ellipsize = TextUtils.TruncateAt.MARQUEE
+            marqueeRepeatLimit = -1
+            setHorizontallyScrolling(true)
+            isSelected = true
+        }
+        sportsBox = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(20), dp(10), dp(20), dp(10))
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dpf(14f)
+                setColor(Color.parseColor("#CC0A1522"))
+                setStroke(dp(1), Color.parseColor("#33FFFFFF"))
+            }
+            visibility = View.GONE
+        }
+        sportsBox.addView(sportsText, LinearLayout.LayoutParams(MATCH, WRAP))
+        content.addView(sportsBox, LinearLayout.LayoutParams(MATCH, WRAP).apply { bottomMargin = dp(6) })
+
         // Bottom: app shelf
         val scroll = HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = false
@@ -232,6 +266,50 @@ class HomeActivity : AppCompatActivity() {
 
         root.addView(content, FrameLayout.LayoutParams(MATCH, MATCH))
         return root
+    }
+
+    // ───────────────────────── sports strip ─────────────────────────
+
+    private fun refreshSports() {
+        if (prefs.sports == "off") { updateSports(); return }
+        val stale = System.currentTimeMillis() - SportsRepository.lastFetch > 3 * 60 * 1000L
+        if (!stale || sportsBusy) { updateSports(); return }
+        sportsBusy = true
+        io.launch {
+            try { SportsRepository.fetchAll() } catch (e: Exception) { /* strip just hides */ }
+            withContext(Dispatchers.Main) {
+                sportsBusy = false
+                if (!isFinishing) updateSports()
+            }
+        }
+    }
+
+    private fun updateSports() {
+        val games = SportsRepository.games
+        if (prefs.sports == "off" || games.isEmpty()) {
+            sportsBox.visibility = View.GONE
+            sportsSignature = ""
+            return
+        }
+        val sig = games.joinToString("|") { it.league + it.text }
+        if (sig == sportsSignature && sportsBox.visibility == View.VISIBLE) return
+        sportsSignature = sig
+        val sb = SpannableStringBuilder()
+        for (g in games.take(40)) {
+            if (g.state == "in") {
+                val s = sb.length
+                sb.append("● ")
+                sb.setSpan(ForegroundColorSpan(red), s, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            }
+            val s2 = sb.length
+            sb.append(g.league).append("  ")
+            sb.setSpan(ForegroundColorSpan(accent), s2, s2 + g.league.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            sb.append(g.text).append("          ")
+        }
+        sportsText.text = sb
+        sportsText.isSelected = false
+        sportsText.isSelected = true
+        sportsBox.visibility = View.VISIBLE
     }
 
     // ───────────────────────── theme (from Settings) ─────────────────────────

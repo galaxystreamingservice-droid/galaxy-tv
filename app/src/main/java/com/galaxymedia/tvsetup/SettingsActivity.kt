@@ -97,6 +97,9 @@ class SettingsActivity : AppCompatActivity() {
         out += Row("Accent color", Themes.accentName(prefs.accent), true) {
             prefs.accent = Themes.next(Themes.accentKeys, prefs.accent)
         }
+        out += Row("Sports", if (prefs.sports == "off") "Off" else "All games today", true) {
+            prefs.sports = if (prefs.sports == "off") "all" else "off"
+        }
         out += Row("Background", Themes.wallpaperName(prefs.wallpaper), true) {
             prefs.wallpaper = Themes.next(Themes.wallpaperKeys, prefs.wallpaper)
         }
