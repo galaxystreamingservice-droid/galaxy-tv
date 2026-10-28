@@ -6,6 +6,7 @@ import android.content.Intent
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Typeface
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.LayerDrawable
@@ -261,9 +262,10 @@ class HomeActivity : AppCompatActivity() {
         val phrase = when {
             h in 5..11 -> "Good morning"
             h in 12..16 -> "Good afternoon"
-            else -> "Good evening"
+            h in 17..21 -> "Good evening"
+            else -> "Good night"
         }
-        val name = prefs.userName.trim()
+        val name = prefs.userName.trim().replaceFirstChar { it.uppercase() }
         greetingView.text = if (name.isEmpty()) phrase else "$phrase, $name"
     }
 
@@ -416,7 +418,10 @@ class HomeActivity : AppCompatActivity() {
             addState(intArrayOf(), normalBg(radiusDp))
         }
         v.setOnFocusChangeListener { view, has ->
-            labels.forEach { (t, c) -> t.setTextColor(if (has) dark else c) }
+            labels.forEach { (t, c) ->
+                t.setTextColor(if (has) Color.BLACK else c)
+                t.setTypeface(null, if (has) Typeface.BOLD else Typeface.NORMAL)
+            }
             extra?.invoke(has)
             val s = if (has) 1.08f else 1f
             view.animate().scaleX(s).scaleY(s).setDuration(120).start()
