@@ -21,6 +21,7 @@ import android.text.SpannableStringBuilder
 import android.text.Spanned
 import android.text.TextUtils
 import android.text.style.ForegroundColorSpan
+import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -35,6 +36,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.widget.TextViewCompat
 import com.galaxymedia.tvsetup.model.DeviceSettings
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -662,6 +664,10 @@ class HomeActivity : AppCompatActivity() {
             ellipsize = TextUtils.TruncateAt.END
             setPadding(0, dp(6), 0, 0)
         }
+        // Long names (like GalaxyTheater) shrink to fit the tile instead of being cut off.
+        TextViewCompat.setAutoSizeTextTypeUniformWithConfiguration(
+            lbl, (9 * prefs.textScale).toInt(), (15 * prefs.textScale).toInt(), 1, TypedValue.COMPLEX_UNIT_SP
+        )
         box.addView(lbl, LinearLayout.LayoutParams(MATCH, WRAP))
         labels += lbl to textColor
         box.setOnClickListener { onClick() }
