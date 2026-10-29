@@ -969,9 +969,95 @@ class HomeActivity : AppCompatActivity() {
             .setPositiveButton("Save") { _, _ ->
                 prefs.userName = input.text.toString().trim()
                 updateGreeting()
+                askZip()
             }
-            .setNegativeButton("Skip", null)
+            .setNegativeButton("Skip") { _, _ -> askZip() }
             .setOnDismissListener { prefs.namePrompted = true }
+            .show()
+    }
+
+    // First-run steps after the name: ZIP code (weather), then the setup code (apps).
+
+    private fun askZip() {
+        val input = EditText(this).apply {
+            hint = "ZIP code"
+            setSingleLine(true)
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER
+            filters = arrayOf(android.text.InputFilter.LengthFilter(5))
+        }
+        AlertDialog.Builder(this)
+            .setTitle("What's your ZIP code?")
+            .setMessage("It sets the weather on your home screen.")
+            .setView(input)
+            .setPositiveButton("Save") { _, _ ->
+                val zip = input.text.toString().trim()
+                if (zip.length != 5) {
+                    Toast.makeText(this, "A ZIP code is 5 digits. You can set weather later in Settings.", Toast.LENGTH_LONG).show()
+                    askCode()
+                } else {
+                    io.launch {
+                        val city = try { WeatherRepository.lookupZip(zip) } catch (e: Exception) { null }
+                        withContext(Dispatchers.Main) {
+                            if (isFinishing) return@withContext
+                            if (city != null) {
+                                prefs.weatherName = city.name
+                                prefs.weatherLat = city.lat
+                                prefs.weatherLon = city.lon
+                                refreshWeather()
+                                Toast.makeText(this@HomeActivity, "Weather set for ${city.name}", Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(this@HomeActivity, "Couldn't look up that ZIP. You can set a city later in Settings.", Toast.LENGTH_LONG).show()
+                            }
+                            askCode()
+                        }
+                    }
+                }
+            }
+            .setNegativeButton("Skip") { _, _ -> askCode() }
+            .show()
+    }
+
+    private fun askCode(prefill: String = "") {
+        if (prefs.settingsUrl.isNotBlank()) return
+        val input = EditText(this).apply {
+            hint = "GAL-1234"
+            setSingleLine(true)
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS
+            setText(prefill)
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Enter your setup code")
+            .setMessage("It sets up your apps. Ask the owner if you don't have one.")
+            .setView(input)
+            .setPositiveButton("Continue") { _, _ ->
+                val code = input.text.toString().trim()
+                Toast.makeText(this, "Checking code…", Toast.LENGTH_SHORT).show()
+                io.launch {
+                    val r = SetupCodes.resolve(code)
+                    if (r.url == null) {
+                        withContext(Dispatchers.Main) {
+                            if (isFinishing) return@withContext
+                            Toast.makeText(this@HomeActivity, r.error ?: "Code not found.", Toast.LENGTH_LONG).show()
+                            askCode(code)
+                        }
+                        return@launch
+                    }
+                    prefs.settingsUrl = r.url
+                    val fresh = try { SettingsRepository(this@HomeActivity).fetch { } } catch (e: Exception) { null }
+                    withContext(Dispatchers.Main) {
+                        if (isFinishing) return@withContext
+                        if (fresh != null) {
+                            prefs.lastSync = System.currentTimeMillis()
+                            settings = fresh
+                            rebuildAll()
+                            startActivity(Intent(this@HomeActivity, MainActivity::class.java).putExtra("autoInstall", true))
+                        } else {
+                            Toast.makeText(this@HomeActivity, "Code accepted, but the settings didn't load. Open Setup & updates and press Check updates.", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                }
+            }
+            .setNegativeButton("Skip for now", null)
             .show()
     }
 

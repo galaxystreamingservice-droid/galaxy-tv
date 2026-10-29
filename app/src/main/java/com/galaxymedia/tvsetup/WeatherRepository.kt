@@ -37,6 +37,20 @@ object WeatherRepository {
         return City(name, r.getDouble("latitude").toString(), r.getDouble("longitude").toString())
     }
 
+    /** Looks a US ZIP code up (zippopotam.us, free, no key). Null if the ZIP doesn't exist. Throws if the network is down. */
+    fun lookupZip(zip: String): City? {
+        val body = try {
+            get("https://api.zippopotam.us/us/${URLEncoder.encode(zip, "UTF-8")}")
+        } catch (e: java.io.FileNotFoundException) {
+            return null
+        }
+        val p = JSONObject(body).optJSONArray("places")?.optJSONObject(0) ?: return null
+        val lat = p.optString("latitude")
+        val lon = p.optString("longitude")
+        if (lat.isBlank() || lon.isBlank()) return null
+        return City(p.optString("place name", zip).ifBlank { zip }, lat, lon)
+    }
+
     /** Fetches the current weather into [text]. Throws on failure (and retries sooner than usual). */
     fun refresh(lat: String, lon: String) {
         val k = "$lat,$lon"

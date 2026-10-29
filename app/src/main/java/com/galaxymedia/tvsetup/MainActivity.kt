@@ -50,7 +50,7 @@ class MainActivity : AppCompatActivity() {
         expiryView = findViewById(R.id.expiry)
 
         val ver = currentVersion()
-        findViewById<TextView>(R.id.title).text = getString(R.string.title) + "  ·  v$ver"
+        findViewById<TextView>(R.id.title).text = "Galaxy Media · v$ver"
         findViewById<TextView>(R.id.deviceInfo).text = profile.summary()
         if (profile.tier == "unsupported") log("⚠ This model is too old for the full experience. Lite features only.")
 
@@ -66,7 +66,10 @@ class MainActivity : AppCompatActivity() {
         }
 
         refreshStatus()
-        if (prefs.settingsUrl.isBlank()) log("Press 'Set settings file URL' and paste this TV's settings link.")
+        if (prefs.settingsUrl.isBlank()) log("Press 'Set settings file URL' and enter your setup code.")
+
+        // Coming from the first-run wizard: go straight into the installs.
+        if (intent.getBooleanExtra("autoInstall", false)) startInstalls()
     }
 
     override fun onResume() {
@@ -84,9 +87,9 @@ class MainActivity : AppCompatActivity() {
     private fun refreshStatus() {
         val url = if (prefs.settingsUrl.isBlank()) "settings URL: not set" else "settings URL: set"
         val sync = if (prefs.lastSync == 0L) "never checked"
-                   else "checked " + DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(prefs.lastSync))
+        else "checked " + DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(prefs.lastSync))
         val perm = if (updater.canInstall()) "installs allowed" else "installs NOT allowed yet"
-        statusView.text = "$url  ·  $sync  ·  $perm"
+        statusView.text = "$url · $sync · $perm"
         refreshExpiry()
     }
 
@@ -135,12 +138,12 @@ class MainActivity : AppCompatActivity() {
 
     private fun nextInstall() {
         val app = queue.removeFirstOrNull() ?: return
-        log("get   ${app.name} …")
+        log("get ${app.name} …")
         io.launch {
             val file = updater.download(app)
             withContext(Dispatchers.Main) {
                 if (file == null) {
-                    log("FAIL  ${app.name}: download error")
+                    log("FAIL ${app.name}: download error")
                     nextInstall()
                 } else {
                     updater.markPending(app)
@@ -149,7 +152,7 @@ class MainActivity : AppCompatActivity() {
                         startActivity(updater.installIntent(file))
                     } catch (e: Exception) {
                         awaitingInstall = false
-                        log("FAIL  ${app.name}: ${e.message}")
+                        log("FAIL ${app.name}: ${e.message}")
                         nextInstall()
                     }
                 }
@@ -160,7 +163,7 @@ class MainActivity : AppCompatActivity() {
     private fun askInstallPermission() {
         AlertDialog.Builder(this)
             .setTitle("Allow installs")
-            .setMessage("Turn ON 'Install unknown apps' for Galaxy TV Setup on the next screen, then come back and press Install updates.")
+            .setMessage("Turn ON 'Install unknown apps' for Galaxy Media on the next screen, then come back and press Install updates.")
             .setPositiveButton("Open") { _, _ ->
                 try {
                     startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName")))
@@ -184,22 +187,29 @@ class MainActivity : AppCompatActivity() {
 
     private fun askForSettingsUrl() {
         val input = EditText(this).apply {
-            hint = "https://gist.githubusercontent.com/…/raw/device-settings.json"
-            setText(prefs.settingsUrl)
+            hint = "GAL-1234"
+            setText(if (prefs.settingsUrl.isBlank()) "" else prefs.settingsUrl)
         }
         AlertDialog.Builder(this)
-            .setTitle("Settings file URL")
-            .setMessage("Paste the RAW link, or just the 32-character code from it.")
+            .setTitle("Setup code")
+            .setMessage("Enter the short setup code (like GAL-1234). The full link or the 32-character code also works.")
             .setView(input)
             .setPositiveButton("Save") { _, _ ->
-                var url = input.text.toString().trim()
-                if (Regex("^[0-9a-fA-F]{32}$").matches(url)) {
-                    url = "https://gist.githubusercontent.com/galaxystreamingservice-droid/${url.lowercase()}/raw/device-settings.json"
+                val text = input.text.toString().trim()
+                if (text.isBlank()) {
+                    log("Nothing was entered. Try again.")
+                } else {
+                    io.launch {
+                        val r = SetupCodes.resolve(text)
+                        if (r.url == null) {
+                            logAsync(r.error ?: "Code not found.")
+                        } else {
+                            prefs.settingsUrl = r.url
+                            logAsync("Setup code accepted. Press Check updates.")
+                            runOnUiThread { refreshStatus() }
+                        }
+                    }
                 }
-                prefs.settingsUrl = url
-                if (url.isBlank()) log("settings URL is EMPTY - nothing was pasted. Try again.")
-                else log("settings URL saved (${url.length} chars, ends …${url.takeLast(20)})")
-                refreshStatus()
             }
             .setNegativeButton("Cancel", null)
             .show()
@@ -208,20 +218,20 @@ class MainActivity : AppCompatActivity() {
     private fun currentVersion(): String =
         try { packageManager.getPackageInfo(packageName, 0).versionName ?: "?" } catch (e: Exception) { "?" }
 
-    /** Checks GitHub for a newer Galaxy TV Setup and installs it over this one (same signing key). */
+    /** Checks GitHub for a newer Galaxy Media and installs it over this one (same signing key). */
     private fun selfUpdate() {
         if (!updater.canInstall()) { askInstallPermission(); return }
         io.launch {
             val rel = updater.latestRelease()
             if (rel == null) { logAsync("Couldn't reach GitHub to check for a new version."); return@launch }
             val mine = currentVersion()
-            if (!updater.isNewer(rel.version, mine)) { logAsync("Galaxy TV Setup is up to date (v$mine)."); return@launch }
+            if (!updater.isNewer(rel.version, mine)) { logAsync("Galaxy Media is up to date (v$mine)."); return@launch }
             logAsync("New version v${rel.version} found. Downloading…")
             val file = updater.downloadTo(rel.apkUrl, "galaxy-self.apk")
             withContext(Dispatchers.Main) {
-                if (file == null) { log("FAIL  Galaxy TV Setup: download error"); return@withContext }
+                if (file == null) { log("FAIL Galaxy Media: download error"); return@withContext }
                 try { startActivity(updater.installIntent(file)) }
-                catch (e: Exception) { log("FAIL  Galaxy TV Setup: ${e.message}") }
+                catch (e: Exception) { log("FAIL Galaxy Media: ${e.message}") }
             }
         }
     }
@@ -236,12 +246,12 @@ class MainActivity : AppCompatActivity() {
             }
         } catch (e: Exception) { "settings file: unreadable" }
         val lastLog = logView.text.toString().lines().takeLast(12).joinToString("\n")
-        val report = "Galaxy TV Setup v${currentVersion()}\n" +
+        val report = "Galaxy Media v${currentVersion()}\n" +
             "${profile.summary()}\n" +
             "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})\n" +
             "Build ${Build.DISPLAY}\n" +
             "${statusView.text}\n\n" +
-            "APPS  ([x] installed)\n$appLines\n\n" +
+            (if (raw.isBlank()) "APPS\n" else "APPS ([x] = installed)\n") + "$appLines\n\n" +
             "LOG\n$lastLog"
         val dark = Color.parseColor("#0A1522")
         val tv = TextView(this).apply {
