@@ -34,15 +34,16 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var titleView: TextView
     private var accent = Color.parseColor("#22D3EE")
 
-    private val bgColor = Color.parseColor("#060A16")
-    private val cardColor = Color.parseColor("#0F1C2E")
-    private val textColor = Color.parseColor("#EAF6FF")
-    private val mutedColor = Color.parseColor("#9FB8C8")
+    private var bgColor = Color.parseColor("#060A16")
+    private var cardColor = Color.parseColor("#0F1C2E")
+    private var textColor = Color.parseColor("#EAF6FF")
+    private var mutedColor = Color.parseColor("#9FB8C8")
 
     companion object {
         private const val MATCH = ViewGroup.LayoutParams.MATCH_PARENT
         private const val WRAP = ViewGroup.LayoutParams.WRAP_CONTENT
         private val sportsModes = listOf("off", "my", "all")
+        private val textSizes = listOf("normal", "large", "xlarge")
     }
 
     private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
@@ -51,6 +52,10 @@ class SettingsActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         prefs = Prefs(this)
+        if (prefs.highContrast) {
+            bgColor = Color.BLACK; cardColor = Color.BLACK
+            textColor = Color.WHITE; mutedColor = Color.WHITE
+        }
         setContentView(buildShell())
         render(0)
     }
@@ -64,14 +69,14 @@ class SettingsActivity : AppCompatActivity() {
         }
         titleView = TextView(this).apply {
             text = "Settings"
-            textSize = 34f
+            textSize = 34f * prefs.textScale
             setTextColor(accent)
             gravity = Gravity.CENTER
         }
         col.addView(titleView)
         col.addView(TextView(this).apply {
             text = "Press a row to change it. Changes show when you go back."
-            textSize = 16f
+            textSize = 16f * prefs.textScale
             setTextColor(mutedColor)
             gravity = Gravity.CENTER
             setPadding(0, dp(6), 0, dp(18))
@@ -97,6 +102,24 @@ class SettingsActivity : AppCompatActivity() {
         "off" -> "Off"
         "my" -> "My teams"
         else -> "All games today"
+    }
+
+    private fun textName(k: String): String = when (k) {
+        "large" -> "Large"
+        "xlarge" -> "Extra large"
+        else -> "Normal"
+    }
+
+    private fun confirmReset() {
+        AlertDialog.Builder(this)
+            .setTitle("Reset my look?")
+            .setMessage("Puts accent, background, sports, shelf, text size and contrast back to the defaults. Your name and teams stay.")
+            .setPositiveButton("Reset") { _, _ ->
+                prefs.resetLook()
+                recreate()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun teamsSummary(): String {
@@ -132,6 +155,15 @@ class SettingsActivity : AppCompatActivity() {
                 prefs.team = Themes.next(Themes.teams.map { it.key }, prefs.team)
             }
         }
+        out += Row("Text size", textName(prefs.textSize), false) {
+            prefs.textSize = Themes.next(textSizes, prefs.textSize)
+            recreate()
+        }
+        out += Row("High contrast", if (prefs.highContrast) "On" else "Off", false) {
+            prefs.highContrast = !prefs.highContrast
+            recreate()
+        }
+        out += Row("Reset my look", "Press to reset", false) { confirmReset() }
         out += Row("Setup & updates", "Open", false) { startActivity(Intent(this, MainActivity::class.java)) }
         out += Row("Done", "Back to home", false) { finish() }
         return out
@@ -158,8 +190,8 @@ class SettingsActivity : AppCompatActivity() {
             isFocusable = true
             isClickable = true
         }
-        val label = TextView(this).apply { text = r.label; textSize = 20f; setTextColor(textColor) }
-        val value = TextView(this).apply { text = r.value; textSize = 20f; setTextColor(accent); gravity = Gravity.END }
+        val label = TextView(this).apply { text = r.label; textSize = 20f * prefs.textScale; setTextColor(textColor) }
+        val value = TextView(this).apply { text = r.value; textSize = 20f * prefs.textScale; setTextColor(accent); gravity = Gravity.END }
         box.addView(label, LinearLayout.LayoutParams(0, WRAP, 1f))
         box.addView(value, LinearLayout.LayoutParams(WRAP, WRAP))
         style(box, 14f, listOf(label to textColor, value to accent))
@@ -254,7 +286,7 @@ class SettingsActivity : AppCompatActivity() {
         shape = GradientDrawable.RECTANGLE
         cornerRadius = dpf(radiusDp)
         setColor(cardColor)
-        setStroke(dp(1), Color.parseColor("#33FFFFFF"))
+        if (prefs.highContrast) setStroke(dp(2), Color.WHITE) else setStroke(dp(1), Color.parseColor("#33FFFFFF"))
     }
 
     private fun ringBg(radiusDp: Float): Drawable {

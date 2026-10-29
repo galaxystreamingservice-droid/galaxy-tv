@@ -56,6 +56,25 @@ class Prefs(ctx: Context) {
     val myTeamKeys: Set<String>
         get() = myTeams.map { it.substringBefore('|') }.toSet()
 
+
+    /** "normal", "large" or "xlarge". */
+    var textSize: String
+        get() = sp.getString("textSize", "normal") ?: "normal"
+        set(v) = sp.edit().putString("textSize", v).apply()
+
+    val textScale: Float
+        get() = when (textSize) { "large" -> 1.2f; "xlarge" -> 1.4f; else -> 1f }
+
+    var highContrast: Boolean
+        get() = sp.getBoolean("highContrast", false)
+        set(v) = sp.edit().putBoolean("highContrast", v).apply()
+
+    /** Puts the look back to defaults. Keeps name, teams and settings link. */
+    fun resetLook() {
+        sp.edit().remove("accent").remove("wallpaper").remove("team").remove("sports")
+            .remove("shelf").remove("textSize").remove("highContrast").apply()
+    }
+
     fun getAppVersion(pkg: String) = sp.getInt("ver_$pkg", 0)
     fun setAppVersion(pkg: String, v: Int) = sp.edit().putInt("ver_$pkg", v).apply()
 

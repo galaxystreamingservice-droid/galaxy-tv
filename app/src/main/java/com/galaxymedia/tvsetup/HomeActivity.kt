@@ -80,6 +80,7 @@ class HomeActivity : AppCompatActivity() {
     private var appliedAccent = ""
     private var appliedBackground = ""
     private var appliedShelf = ""
+    private var appliedLook = ""
 
     private var settings: DeviceSettings? = null
     private var selfUpdateVersion: String? = null
@@ -93,10 +94,10 @@ class HomeActivity : AppCompatActivity() {
     }
 
     // Palette from the design canvas
-    private val bgColor = Color.parseColor("#060A16")
-    private val cardColor = Color.parseColor("#0F1C2E")
-    private val textColor = Color.parseColor("#EAF6FF")
-    private val mutedColor = Color.parseColor("#9FB8C8")
+    private var bgColor = Color.parseColor("#060A16")
+    private var cardColor = Color.parseColor("#0F1C2E")
+    private var textColor = Color.parseColor("#EAF6FF")
+    private var mutedColor = Color.parseColor("#9FB8C8")
     private var accent = Color.parseColor("#22D3EE")
     private val green = Color.parseColor("#6BF0A0")
     private val amber = Color.parseColor("#E3B341")
@@ -119,6 +120,11 @@ class HomeActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         prefs = Prefs(this)
         updater = AppUpdater(this, prefs)
+        appliedLook = prefs.textSize + prefs.highContrast
+        if (prefs.highContrast) {
+            bgColor = Color.BLACK; cardColor = Color.BLACK
+            textColor = Color.WHITE; mutedColor = Color.WHITE
+        }
         setContentView(buildUi())
         // Back stays on this screen. The remote's Home button still leaves, as it always does on Fire TV.
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
@@ -133,6 +139,7 @@ class HomeActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        if (appliedLook != prefs.textSize + prefs.highContrast) { recreate(); return }
         loadStoredSettings()
         applyTheme()
         rebuildAll()
@@ -176,10 +183,10 @@ class HomeActivity : AppCompatActivity() {
         val clock = TextClock(this).apply {
             format12Hour = "h:mm a"
             format24Hour = "h:mm a"
-            textSize = 34f
+            textSize = 34f * prefs.textScale
             setTextColor(textColor)
         }
-        greetingView = TextView(this).apply { textSize = 18f; setTextColor(mutedColor) }
+        greetingView = TextView(this).apply { textSize = 18f * prefs.textScale; setTextColor(mutedColor) }
         left.addView(clock)
         left.addView(greetingView)
         top.addView(left, LinearLayout.LayoutParams(0, WRAP, 1f))
@@ -221,14 +228,14 @@ class HomeActivity : AppCompatActivity() {
         centerTitle = titleBox
         titleBox.addView(TextView(this).apply {
             text = "GALAXY MEDIA"
-            textSize = 40f
+            textSize = 40f * prefs.textScale
             letterSpacing = 0.12f
             setTextColor(textColor)
             gravity = Gravity.CENTER
         })
         titleBox.addView(TextView(this).apply {
             text = "FAMILY EDITION"
-            textSize = 14f
+            textSize = 14f * prefs.textScale
             letterSpacing = 0.3f
             setTextColor(Color.parseColor("#7FD8E8"))
             gravity = Gravity.CENTER
@@ -236,7 +243,7 @@ class HomeActivity : AppCompatActivity() {
         center.addView(titleBox)
         // Display only: not focusable, so the remote skips it and nobody thinks it opens the game.
         tonightView = TextView(this).apply {
-            textSize = 18f
+            textSize = 18f * prefs.textScale
             setTextColor(textColor)
             gravity = Gravity.CENTER
             setPadding(0, dp(14), 0, 0)
@@ -244,7 +251,7 @@ class HomeActivity : AppCompatActivity() {
         }
         center.addView(tonightView)
         hintView = TextView(this).apply {
-            textSize = 16f
+            textSize = 16f * prefs.textScale
             setTextColor(mutedColor)
             gravity = Gravity.CENTER
             setPadding(0, dp(16), 0, 0)
@@ -255,7 +262,7 @@ class HomeActivity : AppCompatActivity() {
 
         // Sports strip (scrolls sideways by itself; hidden when off or when there are no games)
         sportsText = TextView(this).apply {
-            textSize = 16f
+            textSize = 16f * prefs.textScale
             setTextColor(textColor)
             setSingleLine(true)
             ellipsize = TextUtils.TruncateAt.MARQUEE
@@ -270,8 +277,8 @@ class HomeActivity : AppCompatActivity() {
             background = GradientDrawable().apply {
                 shape = GradientDrawable.RECTANGLE
                 cornerRadius = dpf(14f)
-                setColor(Color.parseColor("#CC0A1522"))
-                setStroke(dp(1), Color.parseColor("#33FFFFFF"))
+                setColor(if (prefs.highContrast) Color.BLACK else Color.parseColor("#CC0A1522"))
+                setStroke(if (prefs.highContrast) dp(2) else dp(1), if (prefs.highContrast) Color.WHITE else Color.parseColor("#33FFFFFF"))
             }
             visibility = View.GONE
         }
@@ -564,13 +571,13 @@ class HomeActivity : AppCompatActivity() {
         if (icon != null) {
             box.addView(ImageView(this).apply { setImageDrawable(icon) }, LinearLayout.LayoutParams(dp(48), dp(48)))
         } else {
-            val g = TextView(this).apply { text = glyph; textSize = 30f; gravity = Gravity.CENTER; setTextColor(accent) }
+            val g = TextView(this).apply { text = glyph; textSize = 30f * prefs.textScale; gravity = Gravity.CENTER; setTextColor(accent) }
             box.addView(g, LinearLayout.LayoutParams(dp(48), dp(48)))
             labels += g to accent
         }
         val lbl = TextView(this).apply {
             text = label
-            textSize = 15f
+            textSize = 15f * prefs.textScale
             setTextColor(textColor)
             gravity = Gravity.CENTER
             maxLines = 1
@@ -587,7 +594,7 @@ class HomeActivity : AppCompatActivity() {
     private fun makeChip(spec: ChipSpec): View {
         val tv = TextView(this).apply {
             text = spec.text
-            textSize = 16f
+            textSize = 16f * prefs.textScale
             setTextColor(spec.color)
             gravity = Gravity.CENTER
             setPadding(dp(18), dp(10), dp(18), dp(10))
@@ -601,8 +608,8 @@ class HomeActivity : AppCompatActivity() {
             tv.background = GradientDrawable().apply {
                 shape = GradientDrawable.RECTANGLE
                 cornerRadius = dpf(20f)
-                setColor(Color.parseColor("#CC0A1522"))
-                setStroke(dp(1), spec.color)
+                setColor(if (prefs.highContrast) Color.BLACK else Color.parseColor("#CC0A1522"))
+                setStroke(if (prefs.highContrast) dp(2) else dp(1), if (prefs.highContrast) Color.WHITE else spec.color)
             }
         }
         return tv
@@ -633,7 +640,7 @@ class HomeActivity : AppCompatActivity() {
         shape = GradientDrawable.RECTANGLE
         cornerRadius = dpf(radiusDp)
         setColor(cardColor)
-        setStroke(dp(1), Color.parseColor("#33FFFFFF"))
+        if (prefs.highContrast) setStroke(dp(2), Color.WHITE) else setStroke(dp(1), Color.parseColor("#33FFFFFF"))
     }
 
     private fun ringBg(radiusDp: Float): Drawable {
