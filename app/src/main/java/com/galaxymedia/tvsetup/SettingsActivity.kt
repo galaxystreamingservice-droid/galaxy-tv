@@ -169,6 +169,8 @@ class SettingsActivity : AppCompatActivity() {
         out += Row("Shelf position", if (prefs.shelf == "left") "Left rail" else "Bottom row", true) {
             prefs.shelf = if (prefs.shelf == "left") "bottom" else "left"
         }
+        val hideIdx = out.size
+        out += Row("Hidden apps", if (prefs.hiddenApps.isEmpty()) "None" else "${prefs.hiddenApps.size} hidden", false) { pickHidden(hideIdx) }
         out += Row("Background", Themes.wallpaperName(prefs.wallpaper), true) {
             prefs.wallpaper = Themes.next(Themes.wallpaperKeys, prefs.wallpaper)
         }
@@ -307,6 +309,30 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     // ── my teams: pick a league, then tick the teams you follow ──
+
+    private fun pickHidden(rowIndex: Int) {
+        val apps = try {
+            val raw = prefs.lastSettingsJson
+            if (raw.isBlank()) emptyList() else com.galaxymedia.tvsetup.model.DeviceSettings.parse(raw).apps.filter { it.pinned }
+        } catch (e: Exception) { emptyList() }
+        if (apps.isEmpty()) {
+            Toast.makeText(this, "No apps yet. Open Setup & updates and load your settings first.", Toast.LENGTH_LONG).show()
+            return
+        }
+        val hidden = prefs.hiddenApps
+        val checked = BooleanArray(apps.size) { i -> apps[i].packageName in hidden }
+        AlertDialog.Builder(this)
+            .setTitle("Hide apps from the shelf")
+            .setMultiChoiceItems(apps.map { it.name }.toTypedArray(), checked) { _, i, on -> checked[i] = on }
+            .setPositiveButton("Save") { _, _ ->
+                val keep = hidden.filter { h -> apps.none { it.packageName == h } }.toMutableSet()
+                apps.forEachIndexed { i, a -> if (checked[i]) keep += a.packageName }
+                prefs.hiddenApps = keep
+                render(rowIndex)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
 
     private fun pickLeague(rowIndex: Int) {
         val labels = SportsRepository.teamLeagueLabels()

@@ -728,6 +728,15 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
+    /** The laptop maintenance script stamps the date on the stick; count that as a finished cleanup. */
+    private fun syncMaintenanceStamp() {
+        try {
+            val v = android.provider.Settings.Global.getString(contentResolver, "galaxy_last_maintained") ?: return
+            val t = SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(v.trim())?.time ?: return
+            if (t > prefs.lastCleanup) prefs.lastCleanup = t
+        } catch (e: Exception) { }
+    }
+
     private fun renewalChip(): ChipSpec? {
         val exp = settings?.iptvExpires ?: return null
         if (exp.isBlank()) return null
@@ -746,6 +755,7 @@ class HomeActivity : AppCompatActivity() {
     private fun rebuildChips() {
         val chips = mutableListOf<ChipSpec>()
         if (offline()) chips += ChipSpec("Offline · check Wi-Fi", red, null)
+        if (prefs.settingsUrl.isBlank() && prefs.namePrompted) chips += ChipSpec("Finish setup", accent) { openSetup() }
         val s = settings
         if (s != null) {
             val st = updater.statuses(s.apps)
@@ -758,6 +768,7 @@ class HomeActivity : AppCompatActivity() {
         val renewal = renewalChip()
         val renewalUrgent = renewal != null && (renewal.color == red || renewal.color == amber)
         if (renewal != null && renewalUrgent) chips += renewal
+        syncMaintenanceStamp()
         if (prefs.cleanupDue()) chips += ChipSpec("Maintenance due", accent) { openCleanup() }
         if (renewal != null && !renewalUrgent) chips += renewal
         val vpn = vpnOn()
@@ -785,7 +796,8 @@ class HomeActivity : AppCompatActivity() {
 
     private fun rebuildShelf() {
         placeShelf()
-        val apps = settings?.apps?.filter { it.pinned } ?: emptyList()
+        val hidden = prefs.hiddenApps
+        val apps = settings?.apps?.filter { it.pinned && it.packageName !in hidden } ?: emptyList()
         val sig = prefs.shelf + "#" + apps.joinToString("|") { it.packageName + updater.isInstalled(it.packageName) }
         if (sig == shelfSignature && shelfRow.childCount > 0) return
         shelfSignature = sig

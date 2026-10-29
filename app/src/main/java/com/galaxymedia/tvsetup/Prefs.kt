@@ -52,6 +52,11 @@ class Prefs(ctx: Context) {
         get() = sp.getStringSet("myTeams", emptySet())?.toSet() ?: emptySet()
         set(v) = sp.edit().putStringSet("myTeams", v.toSet()).apply()
 
+    /** Package names of shelf apps this person chose to hide (per stick, not in the Gist). */
+    var hiddenApps: Set<String>
+        get() = sp.getStringSet("hiddenApps", emptySet())?.toSet() ?: emptySet()
+        set(v) = sp.edit().putStringSet("hiddenApps", v.toSet()).apply()
+
     /** Just the "NFL:DAL" part of each favorite team, for matching against games. */
     val myTeamKeys: Set<String>
         get() = myTeams.map { it.substringBefore('|') }.toSet()
