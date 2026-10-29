@@ -56,7 +56,6 @@ class Prefs(ctx: Context) {
     val myTeamKeys: Set<String>
         get() = myTeams.map { it.substringBefore('|') }.toSet()
 
-
     /** "normal", "large" or "xlarge". */
     var textSize: String
         get() = sp.getString("textSize", "normal") ?: "normal"
@@ -69,10 +68,26 @@ class Prefs(ctx: Context) {
         get() = sp.getBoolean("highContrast", false)
         set(v) = sp.edit().putBoolean("highContrast", v).apply()
 
+    /** Quiet mode: chips and sports strip dim after about 30 seconds without a key press. */
+    var quietMode: Boolean
+        get() = sp.getBoolean("quietMode", true)
+        set(v) = sp.edit().putBoolean("quietMode", v).apply()
+
+    /** Night dimming start hour (18 to 23), or -1 for off. Ends at 6 AM. */
+    var nightStart: Int
+        get() = sp.getInt("nightStart", -1)
+        set(v) = sp.edit().putInt("nightStart", v).apply()
+
+    /** Starfield motion: "off" (still), "reduced" (slow, subtle twinkle) or "normal". */
+    var motion: String
+        get() = sp.getString("motion", "off") ?: "off"
+        set(v) = sp.edit().putString("motion", v).apply()
+
     /** Puts the look back to defaults. Keeps name, teams and settings link. */
     fun resetLook() {
         sp.edit().remove("accent").remove("wallpaper").remove("team").remove("sports")
-            .remove("shelf").remove("textSize").remove("highContrast").apply()
+            .remove("shelf").remove("textSize").remove("highContrast")
+            .remove("quietMode").remove("nightStart").remove("motion").apply()
     }
 
     /** How often the "Cleanup due" chip comes back: "off", "weekly" or "monthly". */

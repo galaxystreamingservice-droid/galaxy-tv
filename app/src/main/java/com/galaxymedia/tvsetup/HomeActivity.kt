@@ -16,6 +16,7 @@ import android.net.NetworkCapabilities
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.text.SpannableStringBuilder
 import android.text.Spanned
 import android.text.TextUtils
@@ -75,12 +76,15 @@ class HomeActivity : AppCompatActivity() {
     private lateinit var tonightView: TextView
     private lateinit var sportsBox: LinearLayout
     private lateinit var sportsText: TextView
+    private lateinit var nightOverlay: View
     private var sportsSignature = ""
     private var sportsBusy = false
     private var appliedAccent = ""
     private var appliedBackground = ""
     private var appliedShelf = ""
     private var appliedLook = ""
+    private var quiet = false
+    private var nightOn = false
 
     private var settings: DeviceSettings? = null
     private var selfUpdateVersion: String? = null
@@ -91,6 +95,10 @@ class HomeActivity : AppCompatActivity() {
         private var lastRefresh = 0L
         private const val MATCH = ViewGroup.LayoutParams.MATCH_PARENT
         private const val WRAP = ViewGroup.LayoutParams.WRAP_CONTENT
+        private const val QUIET_AFTER_MS = 30_000L
+        private const val QUIET_ALPHA = 0.25f
+        private const val NIGHT_ALPHA = 0.45f
+        private const val NIGHT_END_HOUR = 6
     }
 
     // Palette from the design canvas
@@ -112,9 +120,12 @@ class HomeActivity : AppCompatActivity() {
             updateGreeting()
             rebuildChips()
             refreshSports()
+            applyNight(false)
             handler.postDelayed(this, 15_000)
         }
     }
+
+    private val quietRunnable = Runnable { enterQuiet() }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -143,6 +154,9 @@ class HomeActivity : AppCompatActivity() {
         loadStoredSettings()
         applyTheme()
         rebuildAll()
+        applyNight(true)
+        leaveQuiet(true)
+        scheduleQuiet()
         handler.removeCallbacks(tick)
         handler.postDelayed(tick, 15_000)
         refreshFromNetwork()
@@ -152,6 +166,56 @@ class HomeActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         handler.removeCallbacks(tick)
+        handler.removeCallbacks(quietRunnable)
+    }
+
+    /** Any key press or touch wakes the chips and sports strip and restarts the idle timer. */
+    override fun onUserInteraction() {
+        super.onUserInteraction()
+        if (quiet) leaveQuiet(false)
+        scheduleQuiet()
+    }
+
+    // ───────────────────────── quiet mode ─────────────────────────
+
+    private fun scheduleQuiet() {
+        handler.removeCallbacks(quietRunnable)
+        if (prefs.quietMode) handler.postDelayed(quietRunnable, QUIET_AFTER_MS)
+    }
+
+    private fun enterQuiet() {
+        if (!prefs.quietMode || isFinishing) return
+        quiet = true
+        chipRow.animate().alpha(QUIET_ALPHA).setDuration(800).start()
+        sportsBox.animate().alpha(QUIET_ALPHA).setDuration(800).start()
+    }
+
+    private fun leaveQuiet(instant: Boolean) {
+        quiet = false
+        chipRow.animate().cancel()
+        sportsBox.animate().cancel()
+        if (instant) {
+            chipRow.alpha = 1f
+            sportsBox.alpha = 1f
+        } else {
+            chipRow.animate().alpha(1f).setDuration(150).start()
+            sportsBox.animate().alpha(1f).setDuration(150).start()
+        }
+    }
+
+    // ───────────────────────── night dimming ─────────────────────────
+
+    /** Dims the whole screen from the chosen hour until 6 AM. */
+    private fun applyNight(instant: Boolean) {
+        val start = prefs.nightStart
+        val h = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+        val on = start >= 0 && (h >= start || h < NIGHT_END_HOUR)
+        if (!instant && on == nightOn) return
+        nightOn = on
+        val target = if (on) NIGHT_ALPHA else 0f
+        nightOverlay.animate().cancel()
+        if (instant) nightOverlay.alpha = target
+        else nightOverlay.animate().alpha(target).setDuration(1500).start()
     }
 
     // ───────────────────────── UI ─────────────────────────
@@ -303,6 +367,15 @@ class HomeActivity : AppCompatActivity() {
         content.addView(bottomScroll, LinearLayout.LayoutParams(MATCH, WRAP))
 
         root.addView(content, FrameLayout.LayoutParams(MATCH, MATCH))
+
+        // Night dimming layer: black, on top of everything, never takes focus or touches.
+        nightOverlay = View(this).apply {
+            setBackgroundColor(Color.BLACK)
+            alpha = 0f
+            isFocusable = false
+            isClickable = false
+        }
+        root.addView(nightOverlay, FrameLayout.LayoutParams(MATCH, MATCH))
         return root
     }
 
@@ -372,7 +445,7 @@ class HomeActivity : AppCompatActivity() {
         sportsBox.visibility = View.VISIBLE
     }
 
-    /** "TONIGHT  Cowboys · Sun 3:25 PM": team, day and time only. Display only, never selectable. */
+    /** "TONIGHT Cowboys · Sun 3:25 PM": team, day and time only. Display only, never selectable. */
     private fun updateTonight(mine: List<Game>) {
         // Games are already sorted live first, then by start time.
         val g = mine.firstOrNull { it.state != "post" }
@@ -382,7 +455,7 @@ class HomeActivity : AppCompatActivity() {
         }
         val team = if (g.homeKey in prefs.myTeamKeys) g.homeName else g.awayName
         val whenStr = SimpleDateFormat("EEE h:mm a", Locale.getDefault()).format(Date(g.start))
-        val sb = SpannableStringBuilder("TONIGHT  ")
+        val sb = SpannableStringBuilder("TONIGHT ")
         sb.setSpan(ForegroundColorSpan(accent), 0, 7, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
         sb.append(team).append(" · ").append(whenStr)
         tonightView.text = sb
@@ -399,7 +472,7 @@ class HomeActivity : AppCompatActivity() {
             shelfSignature = ""
             sportsSignature = ""
         }
-        val bgKey = prefs.wallpaper + ":" + prefs.team
+        val bgKey = prefs.wallpaper + ":" + prefs.team + ":" + prefs.motion
         if (appliedBackground != bgKey) {
             appliedBackground = bgKey
             bgHolder.removeAllViews()
@@ -410,7 +483,7 @@ class HomeActivity : AppCompatActivity() {
                 }
                 "team" -> TeamBgView(this, Themes.team(prefs.team))
                 "plain" -> null
-                else -> StarfieldView(this)
+                else -> StarfieldView(this, prefs.motion)
             }
             if (v != null) bgHolder.addView(v, FrameLayout.LayoutParams(MATCH, MATCH))
             centerTitle.visibility = if (prefs.wallpaper == "logo") View.GONE else View.VISIBLE
@@ -711,21 +784,37 @@ class HomeActivity : AppCompatActivity() {
 
     // ───────────────────────── custom views ─────────────────────────
 
-    private class StarfieldView(ctx: Context) : View(ctx) {
+    /**
+     * Stars. motion = "off" draws them still (as before), "reduced" is a slow, subtle twinkle,
+     * "normal" is a gentle twinkle. Redraws at most about 10 to 20 times a second.
+     */
+    private class StarfieldView(ctx: Context, private val motion: String) : View(ctx) {
         private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
+        // x, y, size, base alpha, phase, speed
         private val stars: List<FloatArray>
 
         init {
             val rnd = Random(11)
-            stars = List(70) { floatArrayOf(rnd.nextFloat(), rnd.nextFloat(), 1f + rnd.nextFloat() * 1.6f, 0.2f + rnd.nextFloat() * 0.6f) }
+            stars = List(70) { i ->
+                floatArrayOf(
+                    rnd.nextFloat(), rnd.nextFloat(), 1f + rnd.nextFloat() * 1.6f, 0.2f + rnd.nextFloat() * 0.6f,
+                    i * 1.7f, 0.8f + (i % 5) * 0.25f
+                )
+            }
         }
 
         override fun onDraw(canvas: Canvas) {
             val d = resources.displayMetrics.density
+            val t = SystemClock.uptimeMillis() / 1000f
+            val moving = motion == "normal" || motion == "reduced"
+            val slow = if (motion == "reduced") 0.35f else 1f
+            val depth = if (motion == "reduced") 0.2f else 0.35f
             for (s in stars) {
-                paint.alpha = (s[3] * 255).toInt()
+                val f = if (moving) (1f - depth) + depth * sin(t * s[5] * slow + s[4]) else 1f
+                paint.alpha = (s[3] * f * 255).toInt().coerceIn(0, 255)
                 canvas.drawCircle(s[0] * width, s[1] * height, s[2] * d, paint)
             }
+            if (moving) postInvalidateDelayed(if (motion == "reduced") 100L else 50L)
         }
     }
 

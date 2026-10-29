@@ -21,7 +21,8 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 
 /**
- * "My Galaxy" settings: name, accent color, sports, my teams, shelf position, background, team colors.
+ * "My Galaxy" settings: name, accent color, sports, my teams, shelf position, background, team colors,
+ * quiet mode, night dimming, background motion.
  * Every row is one big button: press it to change the value or cycle to the next one.
  * Changes show on the home screen as soon as you go back.
  */
@@ -44,6 +45,8 @@ class SettingsActivity : AppCompatActivity() {
         private const val WRAP = ViewGroup.LayoutParams.WRAP_CONTENT
         private val sportsModes = listOf("off", "my", "all")
         private val textSizes = listOf("normal", "large", "xlarge")
+        private val nightHours = listOf(-1, 20, 21, 22, 23)
+        private val motionModes = listOf("off", "reduced", "normal")
     }
 
     private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
@@ -116,10 +119,23 @@ class SettingsActivity : AppCompatActivity() {
         else -> "Normal"
     }
 
+    private fun nightName(h: Int): String = when {
+        h < 0 -> "Off"
+        h == 12 -> "From 12 PM"
+        h > 12 -> "From ${h - 12} PM"
+        else -> "From $h AM"
+    }
+
+    private fun motionName(k: String): String = when (k) {
+        "normal" -> "Normal"
+        "reduced" -> "Reduced"
+        else -> "Off"
+    }
+
     private fun confirmReset() {
         AlertDialog.Builder(this)
             .setTitle("Reset my look?")
-            .setMessage("Puts accent, background, sports, shelf, text size and contrast back to the defaults. Your name and teams stay.")
+            .setMessage("Puts accent, background, sports, shelf, text size, contrast, quiet mode, night dimming and motion back to the defaults. Your name and teams stay.")
             .setPositiveButton("Reset") { _, _ ->
                 prefs.resetLook()
                 recreate()
@@ -160,6 +176,18 @@ class SettingsActivity : AppCompatActivity() {
             out += Row("Team colors", Themes.team(prefs.team).name, true) {
                 prefs.team = Themes.next(Themes.teams.map { it.key }, prefs.team)
             }
+        }
+        if (prefs.wallpaper == "stars") {
+            out += Row("Background motion", motionName(prefs.motion), true) {
+                prefs.motion = Themes.next(motionModes, prefs.motion)
+            }
+        }
+        out += Row("Quiet mode", if (prefs.quietMode) "On" else "Off", true) {
+            prefs.quietMode = !prefs.quietMode
+        }
+        out += Row("Night dimming", nightName(prefs.nightStart), true) {
+            val i = nightHours.indexOf(prefs.nightStart)
+            prefs.nightStart = nightHours[(i + 1) % nightHours.size]
         }
         out += Row("Guided maintenance", "Start", false) { startActivity(Intent(this, CleanupActivity::class.java)) }
         out += Row("Maintenance reminder", cleanupName(prefs.cleanupEvery), true) {
