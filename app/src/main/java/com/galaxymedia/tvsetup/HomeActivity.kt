@@ -23,8 +23,10 @@ import android.text.TextUtils
 import android.text.style.ForegroundColorSpan
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.animation.LinearInterpolator
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
@@ -79,6 +81,12 @@ class HomeActivity : AppCompatActivity() {
     private lateinit var sportsBox: LinearLayout
     private lateinit var sportsText: TextView
     private lateinit var nightOverlay: View
+    private lateinit var saverLayer: FrameLayout
+    private lateinit var saverClock: TextClock
+    private lateinit var noticeBox: TextView
+    private lateinit var liveView: TextView
+    private var saverOn = false
+    private var weatherBusy = false
     private var sportsSignature = ""
     private var sportsBusy = false
     private var appliedAccent = ""
@@ -101,6 +109,8 @@ class HomeActivity : AppCompatActivity() {
         private const val QUIET_ALPHA = 0.25f
         private const val NIGHT_ALPHA = 0.45f
         private const val NIGHT_END_HOUR = 6
+        private const val SAVER_AFTER_MS = 5 * 60_000L
+        private const val SAVER_MOVE_MS = 60_000L
     }
 
     // Palette from the design canvas
@@ -122,12 +132,20 @@ class HomeActivity : AppCompatActivity() {
             updateGreeting()
             rebuildChips()
             refreshSports()
+            refreshWeather()
             applyNight(false)
             handler.postDelayed(this, 15_000)
         }
     }
 
     private val quietRunnable = Runnable { enterQuiet() }
+    private val saverRunnable = Runnable { showSaver() }
+    private val saverMove = object : Runnable {
+        override fun run() {
+            moveSaverClock(false)
+            handler.postDelayed(this, SAVER_MOVE_MS)
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -158,31 +176,50 @@ class HomeActivity : AppCompatActivity() {
         rebuildAll()
         applyNight(true)
         leaveQuiet(true)
+        hideSaver(true)
         scheduleQuiet()
         handler.removeCallbacks(tick)
         handler.postDelayed(tick, 15_000)
         refreshFromNetwork()
         refreshSports()
+        refreshWeather()
     }
 
     override fun onPause() {
         super.onPause()
         handler.removeCallbacks(tick)
         handler.removeCallbacks(quietRunnable)
+        handler.removeCallbacks(saverRunnable)
+        hideSaver(true)
     }
 
     /** Any key press or touch wakes the chips and sports strip and restarts the idle timer. */
     override fun onUserInteraction() {
         super.onUserInteraction()
+        if (saverOn) hideSaver(false)
         if (quiet) leaveQuiet(false)
         scheduleQuiet()
+    }
+
+    /** While the screensaver is showing, the first key press only wakes the screen. */
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (saverOn) {
+            if (event.action == KeyEvent.ACTION_DOWN) {
+                hideSaver(false)
+                scheduleQuiet()
+            }
+            return true
+        }
+        return super.dispatchKeyEvent(event)
     }
 
     // ───────────────────────── quiet mode ─────────────────────────
 
     private fun scheduleQuiet() {
         handler.removeCallbacks(quietRunnable)
+        handler.removeCallbacks(saverRunnable)
         if (prefs.quietMode) handler.postDelayed(quietRunnable, QUIET_AFTER_MS)
+        if (prefs.screensaver) handler.postDelayed(saverRunnable, SAVER_AFTER_MS)
     }
 
     private fun enterQuiet() {
@@ -202,6 +239,76 @@ class HomeActivity : AppCompatActivity() {
         } else {
             chipRow.animate().alpha(1f).setDuration(150).start()
             sportsBox.animate().alpha(1f).setDuration(150).start()
+        }
+    }
+
+    // ───────────────────────── screensaver ─────────────────────────
+
+    private fun showSaver() {
+        if (saverOn || isFinishing || !prefs.screensaver) return
+        saverOn = true
+        saverLayer.animate().cancel()
+        saverLayer.alpha = 0f
+        saverLayer.visibility = View.VISIBLE
+        saverLayer.animate().alpha(1f).setDuration(1200).start()
+        saverLayer.post { moveSaverClock(true) }
+        handler.removeCallbacks(saverMove)
+        handler.postDelayed(saverMove, SAVER_MOVE_MS)
+    }
+
+    private fun hideSaver(instant: Boolean) {
+        handler.removeCallbacks(saverMove)
+        if (!saverOn) return
+        saverOn = false
+        saverLayer.animate().cancel()
+        saverClock.animate().cancel()
+        if (instant) {
+            saverLayer.alpha = 0f
+            saverLayer.visibility = View.GONE
+        } else {
+            saverLayer.animate().alpha(0f).setDuration(200).withEndAction {
+                if (!saverOn) saverLayer.visibility = View.GONE
+            }.start()
+        }
+    }
+
+    /** The clock drifts slowly to a new spot every minute so no pixel stays lit. */
+    private fun moveSaverClock(first: Boolean) {
+        val maxX = (saverLayer.width - saverClock.width).coerceAtLeast(0)
+        val maxY = (saverLayer.height - saverClock.height).coerceAtLeast(0)
+        val tx = Random.nextInt(maxX + 1).toFloat()
+        val ty = Random.nextInt(maxY + 1).toFloat()
+        saverClock.animate().cancel()
+        if (first) {
+            saverClock.translationX = tx
+            saverClock.translationY = ty
+        } else {
+            saverClock.animate().translationX(tx).translationY(ty)
+                .setDuration(SAVER_MOVE_MS - 2000).setInterpolator(LinearInterpolator()).start()
+        }
+    }
+
+    // ───────────────────────── weather ─────────────────────────
+
+    private fun weatherSuffix(): String {
+        if (prefs.weatherLat.isBlank() || WeatherRepository.text.isBlank()) return ""
+        return "  ·  " + WeatherRepository.text
+    }
+
+    private fun refreshWeather() {
+        val lat = prefs.weatherLat
+        val lon = prefs.weatherLon
+        if (lat.isBlank() || lon.isBlank()) return
+        val fresh = "$lat,$lon" == WeatherRepository.key &&
+            System.currentTimeMillis() - WeatherRepository.lastFetch < 30 * 60_000L
+        if (fresh || weatherBusy) return
+        weatherBusy = true
+        io.launch {
+            try { WeatherRepository.refresh(lat, lon) } catch (e: Exception) { /* no weather shown */ }
+            withContext(Dispatchers.Main) {
+                weatherBusy = false
+                if (!isFinishing) updateGreeting()
+            }
         }
     }
 
@@ -266,6 +373,22 @@ class HomeActivity : AppCompatActivity() {
         top.addView(chipRow, LinearLayout.LayoutParams(WRAP, WRAP))
         content.addView(top, LinearLayout.LayoutParams(MATCH, WRAP))
 
+        // Family notice from the settings file (hidden when there is none)
+        noticeBox = TextView(this).apply {
+            textSize = 18f * prefs.textScale
+            setTextColor(amber)
+            gravity = Gravity.CENTER
+            setPadding(dp(24), dp(10), dp(24), dp(10))
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dpf(14f)
+                setColor(if (prefs.highContrast) Color.BLACK else Color.parseColor("#CC0A1522"))
+                setStroke(if (prefs.highContrast) dp(2) else dp(1), amber)
+            }
+            visibility = View.GONE
+        }
+        content.addView(noticeBox, LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(12) })
+
         // Middle: optional left rail for the shelf, then the centre title area
         val middle = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -316,6 +439,16 @@ class HomeActivity : AppCompatActivity() {
             visibility = View.GONE
         }
         center.addView(tonightView)
+        // Big live-score line when one of my teams is playing right now
+        liveView = TextView(this).apply {
+            textSize = 26f * prefs.textScale
+            setTypeface(null, Typeface.BOLD)
+            setTextColor(textColor)
+            gravity = Gravity.CENTER
+            setPadding(0, dp(14), 0, 0)
+            visibility = View.GONE
+        }
+        center.addView(liveView)
         hintView = TextView(this).apply {
             textSize = 16f * prefs.textScale
             setTextColor(mutedColor)
@@ -370,6 +503,22 @@ class HomeActivity : AppCompatActivity() {
 
         root.addView(content, FrameLayout.LayoutParams(MATCH, MATCH))
 
+        // Screensaver: black screen with a big slow-moving clock. Opens after about 5 minutes idle.
+        saverLayer = FrameLayout(this).apply {
+            setBackgroundColor(Color.BLACK)
+            visibility = View.GONE
+            isFocusable = false
+            isClickable = false
+        }
+        saverClock = TextClock(this).apply {
+            format12Hour = "h:mm"
+            format24Hour = "h:mm"
+            textSize = 110f
+            setTextColor(if (prefs.highContrast) Color.WHITE else Color.parseColor("#8FA3B0"))
+        }
+        saverLayer.addView(saverClock, FrameLayout.LayoutParams(WRAP, WRAP))
+        root.addView(saverLayer, FrameLayout.LayoutParams(MATCH, MATCH))
+
         // Night dimming layer: black, on top of everything, never takes focus or touches.
         nightOverlay = View(this).apply {
             setBackgroundColor(Color.BLACK)
@@ -420,7 +569,10 @@ class HomeActivity : AppCompatActivity() {
             "my" -> SportsRepository.games.filter { it.homeKey in keys || it.awayKey in keys }
             else -> SportsRepository.games
         }
-        updateTonight(if (mode == "my") shown else emptyList())
+        updateLive(if (mode == "off") null else SportsRepository.games.firstOrNull {
+            it.state == "in" && (it.homeKey in keys || it.awayKey in keys)
+        })
+        updateTonight(if (mode == "my" && liveView.visibility != View.VISIBLE) shown else emptyList())
         if (shown.isEmpty()) {
             sportsBox.visibility = View.GONE
             sportsSignature = ""
@@ -445,6 +597,19 @@ class HomeActivity : AppCompatActivity() {
         sportsText.isSelected = false
         sportsText.isSelected = true
         sportsBox.visibility = View.VISIBLE
+    }
+
+    /** "LIVE Cowboys 14, Giants 7 · Q2 5:20" for one of my teams. Display only. */
+    private fun updateLive(g: Game?) {
+        if (g == null) {
+            liveView.visibility = View.GONE
+            return
+        }
+        val sb = SpannableStringBuilder("● LIVE  ")
+        sb.setSpan(ForegroundColorSpan(red), 0, 6, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        sb.append(g.text)
+        liveView.text = sb
+        liveView.visibility = View.VISIBLE
     }
 
     /** "TONIGHT Cowboys · Sun 3:25 PM": team, day and time only. Display only, never selectable. */
@@ -525,6 +690,12 @@ class HomeActivity : AppCompatActivity() {
         cm.allNetworks.any { cm.getNetworkCapabilities(it)?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true }
     } catch (e: Exception) { false }
 
+    private fun offline(): Boolean = try {
+        val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val caps = cm.activeNetwork?.let { cm.getNetworkCapabilities(it) }
+        caps == null || !caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+    } catch (e: Exception) { false }
+
     // ───────────────────────── rebuild ─────────────────────────
 
     private fun rebuildAll() {
@@ -532,6 +703,7 @@ class HomeActivity : AppCompatActivity() {
         rebuildChips()
         rebuildShelf()
         updateSports()
+        updateNotice()
     }
 
     private fun updateGreeting() {
@@ -543,7 +715,17 @@ class HomeActivity : AppCompatActivity() {
             else -> "Good night"
         }
         val name = prefs.userName.trim().replaceFirstChar { it.uppercase() }
-        greetingView.text = if (name.isEmpty()) phrase else "$phrase, $name"
+        greetingView.text = (if (name.isEmpty()) phrase else "$phrase, $name") + weatherSuffix()
+    }
+
+    private fun updateNotice() {
+        val n = settings?.notice?.trim().orEmpty()
+        if (n.isEmpty()) {
+            noticeBox.visibility = View.GONE
+        } else {
+            noticeBox.text = n
+            noticeBox.visibility = View.VISIBLE
+        }
     }
 
     private fun renewalChip(): ChipSpec? {
@@ -563,6 +745,7 @@ class HomeActivity : AppCompatActivity() {
 
     private fun rebuildChips() {
         val chips = mutableListOf<ChipSpec>()
+        if (offline()) chips += ChipSpec("Offline · check Wi-Fi", red, null)
         val s = settings
         if (s != null) {
             val st = updater.statuses(s.apps)
@@ -762,8 +945,12 @@ class HomeActivity : AppCompatActivity() {
     private fun showMenu() {
         AlertDialog.Builder(this)
             .setTitle("Galaxy Media")
-            .setItems(arrayOf("Settings", "Setup & updates")) { _, which ->
-                if (which == 0) startActivity(Intent(this, SettingsActivity::class.java)) else openSetup()
+            .setItems(arrayOf("Settings", "Setup & updates", "Help: fix it")) { _, which ->
+                when (which) {
+                    0 -> startActivity(Intent(this, SettingsActivity::class.java))
+                    1 -> openSetup()
+                    else -> startActivity(Intent(this, HelpActivity::class.java))
+                }
             }
             .setNegativeButton("Close", null)
             .show()
@@ -791,12 +978,14 @@ class HomeActivity : AppCompatActivity() {
     // ───────────────────────── custom views ─────────────────────────
 
     /**
-     * Stars. motion = "off" draws them still (as before), "reduced" is a slow, subtle twinkle,
-     * "normal" is a gentle twinkle. Redraws at most about 10 to 20 times a second.
+     * Stars. motion = "off" draws them still, "reduced" is a slow subtle twinkle, "normal" is a
+     * strong twinkle plus a slow upward drift and an occasional shooting star.
+     * Redraws about 10 (reduced) or 20 (normal) times a second.
      */
     private class StarfieldView(ctx: Context, private val motion: String) : View(ctx) {
         private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
-        // x, y, size, base alpha, phase, speed
+        private val streak = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE; strokeCap = Paint.Cap.ROUND }
+        // x, y, size, base alpha, phase, speed, drift x, drift y
         private val stars: List<FloatArray>
 
         init {
@@ -804,7 +993,8 @@ class HomeActivity : AppCompatActivity() {
             stars = List(70) { i ->
                 floatArrayOf(
                     rnd.nextFloat(), rnd.nextFloat(), 1f + rnd.nextFloat() * 1.6f, 0.2f + rnd.nextFloat() * 0.6f,
-                    i * 1.7f, 0.8f + (i % 5) * 0.25f
+                    i * 1.7f, 0.8f + (i % 5) * 0.25f,
+                    ((i % 7) - 3) * 0.001f, -(0.004f + (i % 4) * 0.003f)
                 )
             }
         }
@@ -812,15 +1002,43 @@ class HomeActivity : AppCompatActivity() {
         override fun onDraw(canvas: Canvas) {
             val d = resources.displayMetrics.density
             val t = SystemClock.uptimeMillis() / 1000f
-            val moving = motion == "normal" || motion == "reduced"
-            val slow = if (motion == "reduced") 0.35f else 1f
-            val depth = if (motion == "reduced") 0.2f else 0.35f
+            val normal = motion == "normal"
+            val moving = normal || motion == "reduced"
+            val slow = if (normal) 1.6f else 0.35f
+            val base = if (normal) 0.55f else 0.8f
+            val amp = if (normal) 0.45f else 0.2f
             for (s in stars) {
-                val f = if (moving) (1f - depth) + depth * sin(t * s[5] * slow + s[4]) else 1f
+                val f = if (moving) base + amp * sin(t * s[5] * slow + s[4]) else 1f
+                var x = s[0]
+                var y = s[1]
+                if (normal) {
+                    x = ((x + s[6] * t) % 1f + 1f) % 1f
+                    y = ((y + s[7] * t) % 1f + 1f) % 1f
+                }
                 paint.alpha = (s[3] * f * 255).toInt().coerceIn(0, 255)
-                canvas.drawCircle(s[0] * width, s[1] * height, s[2] * d, paint)
+                canvas.drawCircle(x * width, y * height, s[2] * d, paint)
             }
-            if (moving) postInvalidateDelayed(if (motion == "reduced") 100L else 50L)
+            if (normal) drawShootingStar(canvas, t, d)
+            if (moving) postInvalidateDelayed(if (normal) 50L else 100L)
+        }
+
+        /** One streak across the sky every 9 seconds, visible for about a second. */
+        private fun drawShootingStar(canvas: Canvas, t: Float, d: Float) {
+            val period = 9f
+            val slot = (t / period).toInt()
+            val p = t - slot * period
+            if (p > 1f) return
+            val r = Random(slot * 7919)
+            val x0 = 0.1f + r.nextFloat() * 0.7f
+            val y0 = r.nextFloat() * 0.4f
+            val hx = (x0 + p * 0.28f) * width
+            val hy = (y0 + p * 0.16f) * height
+            val tailP = (p - 0.25f).coerceAtLeast(0f)
+            val tx = (x0 + tailP * 0.28f) * width
+            val ty = (y0 + tailP * 0.16f) * height
+            streak.strokeWidth = 2f * d
+            streak.alpha = ((1f - p) * 220).toInt().coerceIn(0, 255)
+            canvas.drawLine(tx, ty, hx, hy, streak)
         }
     }
 

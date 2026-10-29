@@ -189,6 +189,11 @@ class SettingsActivity : AppCompatActivity() {
             val i = nightHours.indexOf(prefs.nightStart)
             prefs.nightStart = nightHours[(i + 1) % nightHours.size]
         }
+        val weatherIdx = out.size
+        out += Row("Weather", prefs.weatherName.ifBlank { "Off" }, false) { askWeather(weatherIdx) }
+        out += Row("Screensaver", if (prefs.screensaver) "On" else "Off", true) {
+            prefs.screensaver = !prefs.screensaver
+        }
         out += Row("Guided maintenance", "Start", false) { startActivity(Intent(this, CleanupActivity::class.java)) }
         out += Row("Maintenance reminder", cleanupName(prefs.cleanupEvery), true) {
             prefs.cleanupEvery = Themes.next(listOf("off", "weekly", "monthly"), prefs.cleanupEvery)
@@ -257,6 +262,48 @@ class SettingsActivity : AppCompatActivity() {
             }
             .setNegativeButton("Cancel", null)
             .show()
+    }
+
+    // ── weather city ──
+
+    private fun askWeather(rowIndex: Int) {
+        val input = EditText(this).apply {
+            hint = "City, e.g. Fort Worth"
+            setSingleLine(true)
+            setText(prefs.weatherName)
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Weather city")
+            .setMessage("Shows the temperature next to your greeting.")
+            .setView(input)
+            .setPositiveButton("Save") { _, _ -> findCity(input.text.toString().trim(), rowIndex) }
+            .setNeutralButton("Turn off") { _, _ ->
+                prefs.weatherName = ""
+                prefs.weatherLat = ""
+                prefs.weatherLon = ""
+                render(rowIndex)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun findCity(q: String, rowIndex: Int) {
+        if (q.isBlank()) return
+        Toast.makeText(this, "Looking up $q...", Toast.LENGTH_SHORT).show()
+        Thread {
+            val city = try { WeatherRepository.geocode(q) } catch (e: Exception) { null }
+            runOnUiThread {
+                if (isFinishing) return@runOnUiThread
+                if (city == null) {
+                    Toast.makeText(this, "Couldn't find that city. Check the spelling and the Wi-Fi.", Toast.LENGTH_LONG).show()
+                    return@runOnUiThread
+                }
+                prefs.weatherName = city.name
+                prefs.weatherLat = city.lat
+                prefs.weatherLon = city.lon
+                render(rowIndex)
+            }
+        }.start()
     }
 
     // ── my teams: pick a league, then tick the teams you follow ──

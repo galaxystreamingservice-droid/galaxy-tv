@@ -28,7 +28,7 @@ data class DeviceSettings(
     val launcherPackage: String,
     val launcherApkUrl: String,
     val shelfPosition: String,
-    val killPreviousApp: String,       // "auto" | "on" | "off"
+    val killPreviousApp: String, // "auto" | "on" | "off"
     val backgroundSource: String,
     val backgroundImage: String,
     val backgroundEffect: String,
@@ -36,7 +36,8 @@ data class DeviceSettings(
     val leagues: List<String>,
     val teams: Map<String, String>,
     val boxing: List<BoxingEvent>,
-    val iptvExpires: String = ""      // "YYYY-MM-DD", optional
+    val iptvExpires: String = "", // "YYYY-MM-DD", optional
+    val notice: String = "" // optional family notice shown as a banner on the home screen
 ) {
     companion object {
         fun parse(raw: String): DeviceSettings {
@@ -99,7 +100,8 @@ data class DeviceSettings(
                 leagues = leagues,
                 teams = teams,
                 boxing = boxing,
-                iptvExpires = o.optString("iptvExpires", "")
+                iptvExpires = o.optString("iptvExpires", ""),
+                notice = o.optString("notice", "")
             )
         }
     }

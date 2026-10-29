@@ -83,11 +83,29 @@ class Prefs(ctx: Context) {
         get() = sp.getString("motion", "off") ?: "off"
         set(v) = sp.edit().putString("motion", v).apply()
 
+    /** Idle screensaver (a slow-moving clock) after about 5 minutes with no key press. */
+    var screensaver: Boolean
+        get() = sp.getBoolean("screensaver", true)
+        set(v) = sp.edit().putBoolean("screensaver", v).apply()
+
+    /** Weather city for the greeting line. Blank = off. Lat/lon are saved as text. */
+    var weatherName: String
+        get() = sp.getString("weatherName", "") ?: ""
+        set(v) = sp.edit().putString("weatherName", v).apply()
+
+    var weatherLat: String
+        get() = sp.getString("weatherLat", "") ?: ""
+        set(v) = sp.edit().putString("weatherLat", v).apply()
+
+    var weatherLon: String
+        get() = sp.getString("weatherLon", "") ?: ""
+        set(v) = sp.edit().putString("weatherLon", v).apply()
+
     /** Puts the look back to defaults. Keeps name, teams and settings link. */
     fun resetLook() {
         sp.edit().remove("accent").remove("wallpaper").remove("team").remove("sports")
             .remove("shelf").remove("textSize").remove("highContrast")
-            .remove("quietMode").remove("nightStart").remove("motion").apply()
+            .remove("quietMode").remove("nightStart").remove("motion").remove("screensaver").apply()
     }
 
     /** How often the "Cleanup due" chip comes back: "off", "weekly" or "monthly". */
