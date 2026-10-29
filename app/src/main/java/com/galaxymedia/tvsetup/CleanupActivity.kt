@@ -7,7 +7,10 @@ import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.LayerDrawable
 import android.graphics.drawable.StateListDrawable
+import android.net.Uri
 import android.os.Bundle
+import android.os.Environment
+import android.os.StatFs
 import android.provider.Settings
 import android.view.Gravity
 import android.view.View
@@ -18,34 +21,51 @@ import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import com.galaxymedia.tvsetup.model.DeviceSettings
+import java.io.File
+import java.util.Locale
 
 /**
- * Guided cleanup: step cards that tell you exactly where to go in Fire TV's own Settings.
- * We can't draw over Amazon's screens, so each card names the path and the switches to turn off.
- * This only reduces ads and tracking. It does not disable any apps.
+ * Guided maintenance: step cards for the routine upkeep of a Fire TV.
+ * We can't draw over Amazon's screens or clear other apps' caches without special access,
+ * so each card shows what to do and opens the right Fire TV screen. The one thing we can do
+ * ourselves is clear Galaxy Media's own temp files. Nothing here disables or removes any app.
  */
 class CleanupActivity : AppCompatActivity() {
 
-    private class Step(val title: String, val path: String, val todo: List<String>, val note: String)
+    /** kind: "space" (storage), "cache" (per-app cache) or "info" (plain settings card). */
+    private class Step(val kind: String, val title: String, val path: String, val todo: List<String>, val note: String)
 
     private val steps = listOf(
         Step(
-            "Turn off video autoplay",
+            "space", "Free up space",
+            "Settings › Applications › Manage Installed Applications",
+            listOf("Uninstall apps nobody uses", "Downloader › Files: delete old .apk files"),
+            "A full stick is a slow stick. Aim to keep a couple of GB free."
+        ),
+        Step(
+            "cache", "Clear app caches",
+            "Settings › Applications › Manage Installed Applications › (app) › Clear cache",
+            emptyList(),
+            "Only press Clear cache. Never press Clear data: that logs you out of TiviMate, XC7 and the others."
+        ),
+        Step(
+            "info", "Turn off video autoplay",
             "Settings › Preferences › Featured Content",
             listOf("Allow Video Autoplay: OFF", "Allow Audio Autoplay: OFF"),
             "Stops the loud auto-playing ads on the Fire TV home screen."
         ),
         Step(
-            "Stop usage tracking",
+            "info", "Privacy settings",
             "Settings › Preferences › Privacy Settings",
-            listOf("Device Usage Data: OFF", "Collect App Usage Data: OFF"),
-            "Amazon stops collecting how this device and your apps are used."
+            listOf("Device Usage Data: OFF", "Collect App Usage Data: OFF", "Interest-based Ads: OFF"),
+            "Interest-based Ads is near the bottom of the list. Your apps and channels are not touched."
         ),
         Step(
-            "Turn off interest-based ads",
-            "Settings › Preferences › Privacy Settings",
-            listOf("Interest-based Ads: OFF"),
-            "It is near the bottom of the Privacy Settings list. Your apps and channels are not touched."
+            "info", "Update and restart",
+            "Settings › My Fire TV",
+            listOf("About › Check for Updates", "Restart (do this last)"),
+            "Install any system update first, then restart. A restart every week or two keeps the stick quick."
         )
     )
 
@@ -103,12 +123,56 @@ class CleanupActivity : AppCompatActivity() {
             if (top > 0) setPadding(0, dp(top), 0, 0)
         }
 
+    // ───────────────────────── storage + temp files ─────────────────────────
+
+    private fun fmt(b: Long): String =
+        if (b >= 1_000_000_000L) String.format(Locale.US, "%.1f GB", b / 1e9)
+        else String.format(Locale.US, "%d MB", b / 1_000_000L)
+
+    private fun storageLine(): Pair<String, Boolean> {
+        return try {
+            val st = StatFs(Environment.getDataDirectory().path)
+            val free = st.availableBytes
+            val total = st.totalBytes
+            val low = free < 1_000_000_000L || free * 100 / total < 12
+            Pair("${fmt(free)} free of ${fmt(total)}" + if (low) "  ·  LOW" else "", low)
+        } catch (e: Exception) {
+            Pair("Couldn't read storage", false)
+        }
+    }
+
+    private fun tempDirs(): List<File> = listOfNotNull(cacheDir, externalCacheDir)
+
+    private fun dirSize(f: File): Long =
+        if (f.isDirectory) (f.listFiles()?.sumOf { dirSize(it) } ?: 0L) else f.length()
+
+    private fun tempSize(): Long = tempDirs().sumOf { d -> d.listFiles()?.sumOf { dirSize(it) } ?: 0L }
+
+    private fun clearTemp(): Long {
+        var freed = 0L
+        tempDirs().forEach { d ->
+            d.listFiles()?.forEach { freed += dirSize(it); it.deleteRecursively() }
+        }
+        return freed
+    }
+
+    private fun installedApps(): List<Pair<String, String>> {
+        val raw = prefs.lastSettingsJson
+        val s = try { if (raw.isBlank()) null else DeviceSettings.parse(raw) } catch (e: Exception) { null } ?: return emptyList()
+        return s.apps.filter { a ->
+            try { packageManager.getPackageInfo(a.packageName, 0); true } catch (e: Exception) { false }
+        }.map { it.name to it.packageName }
+    }
+
+    // ───────────────────────── screen ─────────────────────────
+
     private fun render() {
         body.removeAllViews()
         val s = steps[step]
         val last = step == steps.size - 1
+        var focusTarget: View? = null
 
-        body.addView(text("CLEANUP · STEP ${step + 1} OF ${steps.size}", 16f, accent, bold = true).apply {
+        body.addView(text("MAINTENANCE · STEP ${step + 1} OF ${steps.size}", 16f, accent, bold = true).apply {
             letterSpacing = 0.15f
             gravity = Gravity.CENTER
         })
@@ -119,10 +183,32 @@ class CleanupActivity : AppCompatActivity() {
             setPadding(dp(30), dp(24), dp(30), dp(24))
             background = cardBg()
         }
-        card.addView(text("On the Fire TV, open Settings and go to:", 16f, mutedColor))
-        card.addView(text(s.path, 21f, textColor, top = 4))
-        card.addView(text("Then switch these off:", 16f, mutedColor, top = 18))
-        s.todo.forEach { card.addView(text("→  $it", 22f, accent, bold = true, top = 6)) }
+
+        if (s.kind == "space") {
+            val (line, low) = storageLine()
+            card.addView(text("Free space on this Fire TV:", 16f, mutedColor))
+            card.addView(text(line, 24f, if (low) Color.parseColor("#FFB0B0") else textColor, bold = true, top = 4))
+            card.addView(text("Then, if you need more room:", 16f, mutedColor, top = 18))
+            card.addView(text(s.path, 19f, textColor, top = 4))
+            s.todo.forEach { card.addView(text("→  $it", 21f, accent, bold = true, top = 6)) }
+        } else if (s.kind == "cache") {
+            card.addView(text("For each app below: open its info page, then press Clear cache.", 16f, mutedColor))
+            card.addView(text(s.path, 19f, textColor, top = 4))
+            val apps = installedApps()
+            if (apps.isEmpty()) {
+                card.addView(text("Use the button below to open the apps list, then pick your biggest apps.", 16f, mutedColor, top = 14))
+            }
+            apps.forEach { (name, pkg) ->
+                val b = button("$name: open app info") { openAppInfo(pkg) }
+                if (focusTarget == null) focusTarget = b
+                card.addView(b, LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(10) })
+            }
+        } else {
+            card.addView(text("On the Fire TV, open Settings and go to:", 16f, mutedColor))
+            card.addView(text(s.path, 21f, textColor, top = 4))
+            card.addView(text("Then do this:", 16f, mutedColor, top = 18))
+            s.todo.forEach { card.addView(text("→  $it", 22f, accent, bold = true, top = 6)) }
+        }
         card.addView(text(s.note, 16f, mutedColor, top = 18))
         body.addView(card, LinearLayout.LayoutParams(dp(760), WRAP).apply { topMargin = dp(20) })
 
@@ -133,8 +219,20 @@ class CleanupActivity : AppCompatActivity() {
             clipToPadding = false
             setPadding(dp(8), dp(24), dp(8), dp(8))
         }
-        val first = button("Open Fire TV Settings") { openFireSettings() }
-        buttons.addView(first, buttonParams())
+        if (s.kind == "space") {
+            val size = tempSize()
+            val b = button("Clear Galaxy Media temp files (${fmt(size)})") {
+                val freed = clearTemp()
+                Toast.makeText(this, "Cleared ${fmt(freed)}.", Toast.LENGTH_SHORT).show()
+                render()
+            }
+            buttons.addView(b, buttonParams())
+            if (focusTarget == null) focusTarget = b
+        }
+        val open = if (s.kind == "cache") button("Open apps list") { openApplicationsList() }
+                   else button("Open Fire TV Settings") { openSettings(Intent(Settings.ACTION_SETTINGS)) }
+        buttons.addView(open, buttonParams())
+        if (focusTarget == null) focusTarget = open
         if (step > 0) buttons.addView(button("Back") { step--; render() }, buttonParams())
         buttons.addView(button(if (last) "Done" else "Next") {
             if (last) finishCleanup() else { step++; render() }
@@ -145,23 +243,40 @@ class CleanupActivity : AppCompatActivity() {
             finish()
         }, buttonParams())
         body.addView(buttons, LinearLayout.LayoutParams(WRAP, WRAP))
-        first.post { first.requestFocus() }
+        val ft = focusTarget
+        ft?.post { ft.requestFocus() }
     }
 
-    private fun openFireSettings() {
+    // ───────────────────────── actions ─────────────────────────
+
+    private fun openSettings(i: Intent) {
         try {
-            startActivity(Intent(Settings.ACTION_SETTINGS))
+            startActivity(i)
         } catch (e: Exception) {
-            Toast.makeText(this, "Press Home, then open Settings (the gear) on the Fire TV home screen.", Toast.LENGTH_LONG).show()
+            try {
+                startActivity(Intent(Settings.ACTION_SETTINGS))
+            } catch (e2: Exception) {
+                Toast.makeText(this, "Press Home, then open Settings (the gear) on the Fire TV home screen.", Toast.LENGTH_LONG).show()
+            }
         }
+    }
+
+    private fun openAppInfo(pkg: String) {
+        openSettings(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply { data = Uri.parse("package:$pkg") })
+    }
+
+    private fun openApplicationsList() {
+        openSettings(Intent(Settings.ACTION_MANAGE_APPLICATIONS_SETTINGS))
     }
 
     private fun finishCleanup() {
         prefs.lastCleanup = System.currentTimeMillis()
         prefs.cleanupSnoozeUntil = 0L
-        Toast.makeText(this, "Cleanup done. Thanks!", Toast.LENGTH_LONG).show()
+        Toast.makeText(this, "Maintenance done. Thanks!", Toast.LENGTH_LONG).show()
         finish()
     }
+
+    // ───────────────────────── buttons + look ─────────────────────────
 
     private fun buttonParams() = LinearLayout.LayoutParams(WRAP, WRAP).apply {
         marginStart = dp(8); marginEnd = dp(8)
@@ -185,7 +300,7 @@ class CleanupActivity : AppCompatActivity() {
         t.setOnFocusChangeListener { v, has ->
             t.setTextColor(if (has) Color.BLACK else textColor)
             t.setTypeface(null, if (has) Typeface.BOLD else Typeface.NORMAL)
-            val s = if (has) 1.06f else 1f
+            val s = if (has) 1.04f else 1f
             v.animate().scaleX(s).scaleY(s).setDuration(120).start()
         }
         t.setOnClickListener { onClick() }

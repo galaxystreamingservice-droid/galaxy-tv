@@ -500,7 +500,7 @@ class HomeActivity : AppCompatActivity() {
         val renewal = renewalChip()
         val renewalUrgent = renewal != null && (renewal.color == red || renewal.color == amber)
         if (renewal != null && renewalUrgent) chips += renewal
-        if (prefs.cleanupDue()) chips += ChipSpec("Cleanup due", accent) { openCleanup() }
+        if (prefs.cleanupDue()) chips += ChipSpec("Maintenance due", accent) { openCleanup() }
         if (renewal != null && !renewalUrgent) chips += renewal
         val vpn = vpnOn()
         chips += ChipSpec(if (vpn) "VPN on" else "VPN off", if (vpn) green else mutedColor, null)

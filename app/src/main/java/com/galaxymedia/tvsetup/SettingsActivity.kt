@@ -161,8 +161,8 @@ class SettingsActivity : AppCompatActivity() {
                 prefs.team = Themes.next(Themes.teams.map { it.key }, prefs.team)
             }
         }
-        out += Row("Guided cleanup", "Start", false) { startActivity(Intent(this, CleanupActivity::class.java)) }
-        out += Row("Cleanup reminder", cleanupName(prefs.cleanupEvery), true) {
+        out += Row("Guided maintenance", "Start", false) { startActivity(Intent(this, CleanupActivity::class.java)) }
+        out += Row("Maintenance reminder", cleanupName(prefs.cleanupEvery), true) {
             prefs.cleanupEvery = Themes.next(listOf("off", "weekly", "monthly"), prefs.cleanupEvery)
         }
         out += Row("Text size", textName(prefs.textSize), false) {
