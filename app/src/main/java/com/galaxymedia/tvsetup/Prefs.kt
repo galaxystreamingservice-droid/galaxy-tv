@@ -75,6 +75,25 @@ class Prefs(ctx: Context) {
             .remove("shelf").remove("textSize").remove("highContrast").apply()
     }
 
+    /** How often the "Cleanup due" chip comes back: "off", "weekly" or "monthly". */
+    var cleanupEvery: String
+        get() = sp.getString("cleanupEvery", "monthly") ?: "monthly"
+        set(v) = sp.edit().putString("cleanupEvery", v).apply()
+
+    var lastCleanup: Long
+        get() = sp.getLong("lastCleanup", 0L)
+        set(v) = sp.edit().putLong("lastCleanup", v).apply()
+
+    var cleanupSnoozeUntil: Long
+        get() = sp.getLong("cleanupSnoozeUntil", 0L)
+        set(v) = sp.edit().putLong("cleanupSnoozeUntil", v).apply()
+
+    fun cleanupDue(now: Long = System.currentTimeMillis()): Boolean {
+        val days = when (cleanupEvery) { "weekly" -> 7; "monthly" -> 30; else -> return false }
+        if (now < cleanupSnoozeUntil) return false
+        return lastCleanup == 0L || now - lastCleanup >= days * 86_400_000L
+    }
+
     fun getAppVersion(pkg: String) = sp.getInt("ver_$pkg", 0)
     fun setAppVersion(pkg: String, v: Int) = sp.edit().putInt("ver_$pkg", v).apply()
 

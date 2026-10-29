@@ -497,17 +497,22 @@ class HomeActivity : AppCompatActivity() {
             if (miss > 0) chips += ChipSpec("$miss to install", accent) { openSetup() }
         }
         if (selfUpdateVersion != null) chips += ChipSpec("Galaxy Media update", accent) { openSetup() }
-        renewalChip()?.let { chips += it }
+        val renewal = renewalChip()
+        val renewalUrgent = renewal != null && (renewal.color == red || renewal.color == amber)
+        if (renewal != null && renewalUrgent) chips += renewal
+        if (prefs.cleanupDue()) chips += ChipSpec("Cleanup due", accent) { openCleanup() }
+        if (renewal != null && !renewalUrgent) chips += renewal
         val vpn = vpnOn()
         chips += ChipSpec(if (vpn) "VPN on" else "VPN off", if (vpn) green else mutedColor, null)
 
-        val sig = chips.joinToString("|") { it.text + it.color }
+        val shownChips = chips.take(4) // max four; the lowest-priority ones drop off
+        val sig = shownChips.joinToString("|") { it.text + it.color }
         if (sig == chipSignature && chipRow.childCount > 0) return
         chipSignature = sig
 
         val hadGearFocus = gearView?.hasFocus() == true
         chipRow.removeAllViews()
-        chips.forEach { chipRow.addView(makeChip(it), LinearLayout.LayoutParams(WRAP, WRAP).apply { marginEnd = dp(10) }) }
+        shownChips.forEach { chipRow.addView(makeChip(it), LinearLayout.LayoutParams(WRAP, WRAP).apply { marginEnd = dp(10) }) }
 
         val gear = GearView(this).apply {
             isFocusable = true
@@ -663,6 +668,10 @@ class HomeActivity : AppCompatActivity() {
 
     private fun openSetup() {
         startActivity(Intent(this, MainActivity::class.java))
+    }
+
+    private fun openCleanup() {
+        startActivity(Intent(this, CleanupActivity::class.java))
     }
 
     private fun openStore() {

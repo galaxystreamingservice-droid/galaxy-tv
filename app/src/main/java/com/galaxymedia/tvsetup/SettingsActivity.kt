@@ -104,6 +104,12 @@ class SettingsActivity : AppCompatActivity() {
         else -> "All games today"
     }
 
+    private fun cleanupName(k: String): String = when (k) {
+        "weekly" -> "Weekly"
+        "monthly" -> "Monthly"
+        else -> "Off"
+    }
+
     private fun textName(k: String): String = when (k) {
         "large" -> "Large"
         "xlarge" -> "Extra large"
@@ -154,6 +160,10 @@ class SettingsActivity : AppCompatActivity() {
             out += Row("Team colors", Themes.team(prefs.team).name, true) {
                 prefs.team = Themes.next(Themes.teams.map { it.key }, prefs.team)
             }
+        }
+        out += Row("Guided cleanup", "Start", false) { startActivity(Intent(this, CleanupActivity::class.java)) }
+        out += Row("Cleanup reminder", cleanupName(prefs.cleanupEvery), true) {
+            prefs.cleanupEvery = Themes.next(listOf("off", "weekly", "monthly"), prefs.cleanupEvery)
         }
         out += Row("Text size", textName(prefs.textSize), false) {
             prefs.textSize = Themes.next(textSizes, prefs.textSize)
