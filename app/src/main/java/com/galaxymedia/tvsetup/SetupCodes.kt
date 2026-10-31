@@ -12,7 +12,7 @@ import java.net.URL
 object SetupCodes {
 
     private const val CODES_URL =
-        "https://raw.githubusercontent.com/galaxystreamingservice-droid/galaxy-tv/main/setup-codes.json"
+        "https://gist.githubusercontent.com/galaxystreamingservice-droid/4f0ff093b9423982b318fb21320b1c70/raw/setup-codes.json"
 
     class Result(val url: String?, val error: String?)
 

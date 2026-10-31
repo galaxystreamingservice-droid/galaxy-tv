@@ -93,6 +93,11 @@ class Prefs(ctx: Context) {
         get() = sp.getBoolean("screensaver", true)
         set(v) = sp.edit().putBoolean("screensaver", v).apply()
 
+    /** Open Galaxy Media by itself when the stick finishes starting up. */
+    var autoStart: Boolean
+        get() = sp.getBoolean("autoStart", true)
+        set(v) = sp.edit().putBoolean("autoStart", v).apply()
+
     /** Weather city for the greeting line. Blank = off. Lat/lon are saved as text. */
     var weatherName: String
         get() = sp.getString("weatherName", "") ?: ""

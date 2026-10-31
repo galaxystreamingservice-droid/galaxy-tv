@@ -196,6 +196,9 @@ class SettingsActivity : AppCompatActivity() {
         out += Row("Screensaver", if (prefs.screensaver) "On" else "Off", true) {
             prefs.screensaver = !prefs.screensaver
         }
+        out += Row("Open on startup", if (prefs.autoStart) "On" else "Off", true) {
+            prefs.autoStart = !prefs.autoStart
+        }
         out += Row("Guided maintenance", "Start", false) { startActivity(Intent(this, CleanupActivity::class.java)) }
         out += Row("Maintenance reminder", cleanupName(prefs.cleanupEvery), true) {
             prefs.cleanupEvery = Themes.next(listOf("off", "weekly", "monthly"), prefs.cleanupEvery)
