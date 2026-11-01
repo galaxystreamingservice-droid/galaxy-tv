@@ -9,6 +9,10 @@ Nothing is ever uninstalled. Every step except -Reboot can be undone.
   .\galaxy-maintain.ps1 -Ip 192.168.1.172 -AutoStart   let Galaxy Media open itself after a restart
   .\galaxy-maintain.ps1 -Ip 192.168.1.172 -Reboot      reboot the stick at the end
 
+Check everything worked (read-only, saves a screenshot of the TV):
+  .\galaxy-maintain.ps1 -Ip 192.168.1.172 -Verify     PASS / WARN / FAIL list for the whole setup
+  .\galaxy-maintain.ps1 -Ip 192.168.1.172 -Screenshot just save a picture of what the TV shows
+
 HOME screen test (only with the separate "Galaxy Media HOME TEST" app installed, never on family sticks):
   .\galaxy-maintain.ps1 -Ip 192.168.1.172 -HomeCheck   read-only: who answers the Home button right now
   .\galaxy-maintain.ps1 -Ip 192.168.1.172 -HomeLock    Home button opens Galaxy Media (turns Amazon's home off)
@@ -32,14 +36,16 @@ param(
     [switch]$Reboot,
     [switch]$HomeCheck,
     [switch]$HomeLock,
-    [switch]$HomeUndo
+    [switch]$HomeUndo,
+    [switch]$Verify,
+    [switch]$Screenshot
 )
 
 $ErrorActionPreference = 'Continue'   # adb writes status text to stderr; don't treat that as an error
 $ListUrl = 'https://raw.githubusercontent.com/galaxystreamingservice-droid/galaxy-tv/main/app/src/main/assets/debloat_fireos.json'
 
 # No action chosen = the safe default set.
-if (-not ($Report -or $Debloat -or $Trim -or $AutoStart -or [bool]$Speed -or $Reboot -or $HomeCheck -or $HomeLock -or $HomeUndo)) {
+if (-not ($Report -or $Debloat -or $Trim -or $AutoStart -or [bool]$Speed -or $Reboot -or $HomeCheck -or $HomeLock -or $HomeUndo -or $Verify -or $Screenshot)) {
     $Report = $true; $Debloat = $true; $Trim = $true; $AutoStart = $true
 }
 
@@ -256,6 +262,70 @@ if ($HomeUndo) {
     Show-Home
     Say '  When you are done testing, uninstall the HOME TEST app (Settings > Applications).'
 }
+
+# ---- VERIFY: one read-only health check of everything the app and script set up ----
+function Chk([bool]$ok, [string]$text, [string]$kind = 'FAIL') {
+    if ($ok) { Say "  [PASS] $text" 'Green' }
+    elseif ($kind -eq 'WARN') { Say "  [WARN] $text" 'Yellow' }
+    else { Say "  [FAIL] $text" 'Red' }
+}
+function Take-Shot {
+    $remote = '/sdcard/galaxy-verify.png'
+    Sh "screencap -p $remote" | Out-Null
+    $dirS = Join-Path $PSScriptRoot 'reports'
+    New-Item -ItemType Directory -Force -Path $dirS | Out-Null
+    $local = Join-Path $dirS ("{0}-screen-{1}.png" -f ($model -replace '\W', ''), $stamp)
+    & $adb -s $target pull $remote $local 2>&1 | Out-Null
+    Sh "rm $remote" | Out-Null
+    if (Test-Path $local) { Say "  Screenshot saved: $local" }
+    else { Say '  Screenshot failed (Fire OS blocks it on some screens).' 'Yellow' }
+}
+if ($Verify) {
+    Say "=== VERIFY  $model  $Ip  $date ==="
+    $pkg = 'com.galaxymedia.tvsetup'
+    $installed = Get-List 'pm list packages'
+    $disabled = Get-List 'pm list packages -d'
+    $vm = [regex]::Match(((Sh "dumpsys package $pkg") -join "`n"), 'versionName=(\S+)')
+    Chk ($installed -contains $pkg) ("Galaxy Media installed" + $(if ($vm.Success) { ': v' + $vm.Groups[1].Value } else { '' }))
+    # Edit this list if a stick's shelf is different.
+    $shelf = [ordered]@{ 'TiviMate' = 'ar.tvplayer.tv'; 'XC7' = 'com.haxapps.xc7'; 'SmartTube' = 'org.smarttube.stable'; 'GalaxyTheater' = 'fyahrebrands.moviebox.galaxytheater'; 'WorldVPN' = 'io.world.vpn' }
+    $missing = @()
+    foreach ($k in $shelf.Keys) { if ($installed -notcontains $shelf[$k]) { $missing += $k } }
+    Chk ($missing.Count -eq 0) ($(if ($missing.Count -eq 0) { 'All 5 shelf apps are installed' } else { 'Not installed yet: ' + ($missing -join ', ') }))
+    if ($cfg) {
+        $bad = @($cfg.neverTouch | Where-Object { $disabled -contains $_ })
+        Chk ($bad.Count -eq 0) ($(if ($bad.Count -eq 0) { 'No protected app is switched off' } else { 'Switched off by mistake: ' + ($bad -join ', ') }))
+        $skipFor = @('com.amazon.tv.oobe', 'com.amazon.ftvads.deeplinking')
+        $left = @(@($cfg.always) | Where-Object { ($installed -contains $_) -and ($disabled -notcontains $_) -and (@($cfg.neverTouch) -notcontains $_) -and ($skipFor -notcontains $_) })
+        Chk ($left.Count -eq 0) ($(if ($left.Count -eq 0) { 'Debloat is complete (nothing left to disable)' } else { "$($left.Count) bloat packages are still on. Run the script with no options." })) 'WARN'
+    } else { Say '  [INFO] Debloat check skipped (could not download the list).' }
+    $aw = (Sh "appops get $pkg SYSTEM_ALERT_WINDOW") -join ' '
+    Chk ($aw -match 'allow') 'Auto-start permission is granted (Galaxy Media opens by itself after a restart)'
+    $st = Sh 'settings get global galaxy_last_maintained' | Select-Object -First 1
+    $stOk = [bool]($st -and $st -ne 'null')
+    Chk $stOk ('Maintenance stamp: ' + $(if ($stOk) { $st } else { 'none yet' })) 'WARN'
+    Chk ($disabled -notcontains $AmazonHome) "Amazon's home screen is on (normal setup: the Home button goes to Amazon)" 'WARN'
+    $crash = @(Sh 'logcat -d -b crash' | Where-Object { $_ -match 'com\.galaxymedia' })
+    Chk ($crash.Count -eq 0) ($(if ($crash.Count -eq 0) { 'No Galaxy Media crashes in the log' } else { "$($crash.Count) crash lines for Galaxy Media. Send me the log." }))
+    # The app's own saved settings (private link and settings text are never printed)
+    $prefsText = (Sh "run-as $pkg cat shared_prefs/galaxy.xml") -join "`n"
+    if ($prefsText -match 'name="') {
+        function PStr([string]$k) { $m = [regex]::Match($prefsText, 'name="' + $k + '">([^<]*)<'); if ($m.Success) { $m.Groups[1].Value } else { '' } }
+        $nm = PStr 'userName'
+        Chk ([bool]$nm) ('Name is set' + $(if ($nm) { ": $nm" } else { '' }))
+        Chk ([bool](PStr 'settingsUrl')) 'Settings file link is set'
+        Chk ((PStr 'lastSettings').Length -gt 20) 'Settings file loaded (the shelf has data)'
+        $wn = PStr 'weatherName'
+        Chk ([bool]$wn) ('Weather city is set' + $(if ($wn) { ": $wn" } else { '' })) 'WARN'
+        $wp = PStr 'wallpaper'
+        Say ("  [INFO] Background: " + $(if ($wp) { $wp } else { 'rotate (default)' }))
+    } else { Say '  [INFO] Could not read the app settings (works on debug builds only).' }
+    $top = Sh 'dumpsys activity activities' | Where-Object { $_ -match 'mResumedActivity' } | Select-Object -First 1
+    Say "  [INFO] On the TV now: $top"
+    Say ("  [INFO] Stick has been on for: " + ((Sh 'uptime') -join ' '))
+    Take-Shot
+}
+if ($Screenshot -and -not $Verify) { Say '=== SCREENSHOT ==='; Take-Shot }
 
 # ---- stamp + save ----
 if ($changed -and -not $DryRun) { Sh "settings put global galaxy_last_maintained $date" | Out-Null }
