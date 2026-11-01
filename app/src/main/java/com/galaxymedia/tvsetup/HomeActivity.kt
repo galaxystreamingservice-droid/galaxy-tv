@@ -82,6 +82,8 @@ class HomeActivity : AppCompatActivity() {
     private lateinit var bgHolder: FrameLayout
     private lateinit var centerTitle: View
     private lateinit var infoView: TextView
+    private lateinit var centerBox: LinearLayout
+    private var pictureView: PictureTraceView? = null
     private lateinit var contentBox: LinearLayout
     private var appliedPad = ""
     private val lite: Boolean by lazy { Themes.isLite(this) }
@@ -473,6 +475,8 @@ class HomeActivity : AppCompatActivity() {
         }
         center.addView(hintView)
         middle.addView(center, LinearLayout.LayoutParams(0, MATCH, 1f))
+        centerBox = center
+        center.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> updatePictureZone() }
         content.addView(middle, LinearLayout.LayoutParams(MATCH, 0, 1f))
 
         // Sports strip (scrolls sideways by itself; hidden when off or when there are no games)
@@ -618,6 +622,19 @@ class HomeActivity : AppCompatActivity() {
         sportsBox.visibility = View.VISIBLE
     }
 
+    /** Tells the picture wallpaper where the clear space is (between the top bar and the live-game banner). */
+    private fun updatePictureZone() {
+        val pv = pictureView ?: return
+        if (pv.width == 0 || centerBox.height == 0) return
+        val p = IntArray(2)
+        val c = IntArray(2)
+        pv.getLocationInWindow(p)
+        centerBox.getLocationInWindow(c)
+        val l = (c[0] - p[0]).toFloat()
+        val t = (c[1] - p[1]).toFloat()
+        pv.setZone(l, t, l + centerBox.width, t + centerBox.height)
+    }
+
     /** The date/weather line only shows when the live-game and tonight lines are not using that space. */
     private fun syncInfo() {
         val busy = liveView.visibility == View.VISIBLE || tonightView.visibility == View.VISIBLE
@@ -683,6 +700,8 @@ class HomeActivity : AppCompatActivity() {
                 else -> StarfieldView(this, motionNow())
             }
             if (v != null) bgHolder.addView(v, FrameLayout.LayoutParams(MATCH, MATCH))
+            pictureView = v as? PictureTraceView
+            pictureView?.post { updatePictureZone() }
             centerTitle.visibility = if (wp == "logo" || Themes.isPicture(wp)) View.GONE else View.VISIBLE
             syncInfo()
         }
@@ -1433,16 +1452,25 @@ class HomeActivity : AppCompatActivity() {
     }
 
     /**
-     * Picture wallpaper with a light that runs along the neon outlines drawn in the picture (rings,
-     * shields, the TV shape). The outlines were measured from each picture and live in
-     * assets/traces.json as paths in picture pixels / 2000. motion "off" shows the still picture.
+     * Picture wallpaper: a logo-free starry backdrop plus the logo drawn as its own layer, shrunk to
+     * fit the clear space above the live-game banner (setZone, measured from the real layout). A light
+     * runs along the neon outlines of the logo. The outlines were measured from each picture and
+     * live in assets/traces.json as paths in original-picture pixels / 2000, with the logo's crop.
+     * motion "off" shows the still picture.
      */
     private class PictureTraceView(
         ctx: Context, key: String, private val motion: String, private val color: Int
     ) : View(ctx) {
-        private var bmp: Bitmap? = null
+        private var bg: Bitmap? = null
+        private var logo: Bitmap? = null
         private val paths = ArrayList<FloatArray>()
         private val cums = ArrayList<FloatArray>()
+        private var cropX = 0f
+        private var cropY = 0f
+        private var zl = 0f
+        private var zt = -1f
+        private var zr = 0f
+        private var zb = 0f
         private val pic = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = true }
         private val glow = Paint(Paint.ANTI_ALIAS_FLAG).apply { strokeCap = Paint.Cap.BUTT }
         private val core = Paint(Paint.ANTI_ALIAS_FLAG).apply { strokeCap = Paint.Cap.BUTT }
@@ -1453,30 +1481,46 @@ class HomeActivity : AppCompatActivity() {
 
         init {
             try {
-                val id = ctx.resources.getIdentifier(key, "drawable", ctx.packageName)
-                if (id != 0) bmp = BitmapFactory.decodeResource(ctx.resources, id)
-            } catch (e: Throwable) { bmp = null }
+                val r = ctx.resources
+                val id = r.getIdentifier(key, "drawable", ctx.packageName)
+                if (id != 0) bg = BitmapFactory.decodeResource(r, id)
+                val lid = r.getIdentifier(key + "_logo", "drawable", ctx.packageName)
+                if (lid != 0) logo = BitmapFactory.decodeResource(r, lid)
+            } catch (e: Throwable) { bg = null; logo = null }
             try {
                 val text = ctx.assets.open("traces.json").bufferedReader().use { it.readText() }
-                val arr = JSONObject(text).optJSONArray(key)
-                if (arr != null) for (i in 0 until arr.length()) {
-                    val p = arr.getJSONArray(i)
-                    val n = p.length() / 2
-                    val pts = FloatArray(n * 2) { p.getDouble(it).toFloat() }
-                    val cum = FloatArray(n + 1)
-                    for (j in 0 until n) {
-                        val k = (j + 1) % n
-                        cum[j + 1] = cum[j] + kotlin.math.hypot(pts[k * 2] - pts[j * 2], pts[k * 2 + 1] - pts[j * 2 + 1])
+                val obj = JSONObject(text).optJSONObject(key)
+                if (obj != null) {
+                    val crop = obj.getJSONArray("crop")
+                    cropX = crop.getDouble(0).toFloat()
+                    cropY = crop.getDouble(1).toFloat()
+                    val arr = obj.getJSONArray("paths")
+                    for (i in 0 until arr.length()) {
+                        val p = arr.getJSONArray(i)
+                        val n = p.length() / 2
+                        val pts = FloatArray(n * 2) { p.getDouble(it).toFloat() }
+                        val cum = FloatArray(n + 1)
+                        for (j in 0 until n) {
+                            val k = (j + 1) % n
+                            cum[j + 1] = cum[j] + kotlin.math.hypot(pts[k * 2] - pts[j * 2], pts[k * 2 + 1] - pts[j * 2 + 1])
+                        }
+                        paths.add(pts); cums.add(cum)
                     }
-                    paths.add(pts); cums.add(cum)
                 }
             } catch (e: Exception) { paths.clear(); cums.clear() }
         }
 
+        /** The clear area (in this view's pixels) where the logo should sit, e.g. above the live-game banner. */
+        fun setZone(l: Float, t: Float, r: Float, bt: Float) {
+            if (l == zl && t == zt && r == zr && bt == zb) return
+            zl = l; zt = t; zr = r; zb = bt
+            invalidate()
+        }
+
         override fun onDetachedFromWindow() {
             super.onDetachedFromWindow()
-            bmp?.recycle()
-            bmp = null
+            bg?.recycle(); logo?.recycle()
+            bg = null; logo = null
         }
 
         /** Point `s` along the closed path (picture units), written into out. */
@@ -1498,16 +1542,30 @@ class HomeActivity : AppCompatActivity() {
         }
 
         override fun onDraw(canvas: Canvas) {
-            val bm = bmp ?: return
+            val bm = bg ?: return
             val iw = bm.width.toFloat()
             val ih = bm.height.toFloat()
-            val scale = maxOf(width / iw, height / ih)
-            val offX = (width - iw * scale) / 2f
-            val offY = (height - ih * scale) / 2f
+            val cover = maxOf(width / iw, height / ih)
             canvas.save()
-            canvas.translate(offX, offY)
-            canvas.scale(scale, scale)
+            canvas.translate((width - iw * cover) / 2f, (height - ih * cover) / 2f)
+            canvas.scale(cover, cover)
             canvas.drawBitmap(bm, 0f, 0f, pic)
+            canvas.restore()
+
+            val lg = logo ?: return
+            // Fit the logo into the clear zone (default: the band above the ticker and shelf)
+            val l = if (zt >= 0f) zl else 0f
+            val t = if (zt >= 0f) zt else height * 0.19f
+            val r = if (zt >= 0f) zr else width.toFloat()
+            val bt = if (zt >= 0f) zb else height * 0.57f
+            val s = minOf((r - l) * 0.7f / lg.width, (bt - t) * 0.94f / lg.height)
+            if (s <= 0f) return
+            val left = (l + r) / 2f - lg.width * s / 2f
+            val top = (t + bt) / 2f - lg.height * s / 2f
+            canvas.save()
+            canvas.translate(left, top)
+            canvas.scale(s, s)
+            canvas.drawBitmap(lg, 0f, 0f, pic)
             canvas.restore()
             if (motion == "off" || paths.isEmpty()) return
 
@@ -1515,7 +1573,9 @@ class HomeActivity : AppCompatActivity() {
             val normal = motion == "normal"
             val speed = if (normal) 0.14f else 0.05f       // picture units per second
             val now = SystemClock.uptimeMillis() / 1000f
-            val toScreen = iw * scale                       // picture unit -> screen pixels
+            val unit = 2000f * s                            // picture unit -> screen pixels
+            val ox = left - cropX * s
+            val oy = top - cropY * s
             val tail = 0.2f
             val steps = 28
             val step = tail / steps
@@ -1530,15 +1590,15 @@ class HomeActivity : AppCompatActivity() {
                     val fade = 1f - i / steps.toFloat()
                     glow.color = color
                     glow.alpha = (110 * fade * fade).toInt()
-                    glow.strokeWidth = 14f * d
-                    canvas.drawLine(offX + a[0] * toScreen, offY + a[1] * toScreen, offX + b[0] * toScreen, offY + b[1] * toScreen, glow)
+                    glow.strokeWidth = 12f * d
+                    canvas.drawLine(ox + a[0] * unit, oy + a[1] * unit, ox + b[0] * unit, oy + b[1] * unit, glow)
                     core.color = hot
                     core.alpha = (240 * fade * fade).toInt()
-                    core.strokeWidth = 4.5f * d
-                    canvas.drawLine(offX + a[0] * toScreen, offY + a[1] * toScreen, offX + b[0] * toScreen, offY + b[1] * toScreen, core)
+                    core.strokeWidth = 4f * d
+                    canvas.drawLine(ox + a[0] * unit, oy + a[1] * unit, ox + b[0] * unit, oy + b[1] * unit, core)
                 }
                 pointAt(pts, cum, head, a)
-                canvas.drawCircle(offX + a[0] * toScreen, offY + a[1] * toScreen, 6.5f * d, dot)
+                canvas.drawCircle(ox + a[0] * unit, oy + a[1] * unit, 5.5f * d, dot)
             }
             postInvalidateDelayed(if (normal) 33L else 66L)
         }
