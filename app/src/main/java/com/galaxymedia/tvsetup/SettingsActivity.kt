@@ -177,12 +177,18 @@ class SettingsActivity : AppCompatActivity() {
         }
         val lite = Themes.isLite(this)
         val wp = Themes.effective(prefs.wallpaper, lite)
-        if (!lite && (wp == "trace" || Themes.isPicture(wp))) {
+        if (wp == "rotate") {
+            out += Row("Change every", "${prefs.rotateMin} min", true) {
+                val i = Themes.rotateOptions.indexOf(prefs.rotateMin)
+                prefs.rotateMin = Themes.rotateOptions[(i + 1) % Themes.rotateOptions.size]
+            }
+        }
+        if (wp == "rotate" || (!lite && (wp == "trace" || Themes.isPicture(wp)))) {
             out += Row("Light color", Themes.beamName(prefs.beam), true) {
                 prefs.beam = Themes.next(Themes.beamKeys, prefs.beam)
             }
         }
-        if (wp == "stars" || (!lite && (wp == "trace" || wp == "aurora" || Themes.isPicture(wp)))) {
+        if (wp == "stars" || wp == "rotate" || (!lite && (wp == "trace" || wp == "aurora" || Themes.isPicture(wp)))) {
             out += Row("Background motion", motionName(prefs.motion), true) {
                 prefs.motion = Themes.next(motionModes, prefs.motion)
             }

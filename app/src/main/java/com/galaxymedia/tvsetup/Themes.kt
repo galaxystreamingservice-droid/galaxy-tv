@@ -59,17 +59,33 @@ object Themes {
     /** Backgrounds with a moving light or heavy animation. Hidden on lower-end sticks. */
     private val heavyKeys = listOf("trace", "aurora")
 
-    private val allWallpapers = listOf("stars") + pictureKeys + listOf(
+    private val allWallpapers = listOf("rotate", "stars") + pictureKeys + listOf(
         "trace", "aurora", "nebula", "sunset", "ocean", "city", "grid", "mountains", "logo", "plain"
     )
 
     /** What actually shows: lower-end sticks get the starfield in place of the heavy ones. */
     fun effective(key: String, lite: Boolean): String = if (lite && key in heavyKeys) "stars" else key
 
+    /** How often the "rotate" wallpaper changes, in minutes. */
+    val rotateOptions = listOf(2, 5, 10, 15, 30, 60)
+
+    private val rotateSkip = listOf("rotate", "logo", "plain")
+
+    fun rotatePool(lite: Boolean): List<String> = wallpapersFor(lite).filter { it !in rotateSkip }
+
+    /** The wallpaper to show now. "rotate" picks from the pool by wall-clock time, so it keeps going across restarts. */
+    fun resolve(key: String, lite: Boolean, minutes: Int): String {
+        if (key != "rotate") return effective(key, lite)
+        val pool = rotatePool(lite)
+        val slot = (System.currentTimeMillis() / (minutes.coerceAtLeast(1) * 60_000L)).toInt()
+        return pool[Math.floorMod(slot, pool.size)]
+    }
+
     fun wallpapersFor(lite: Boolean): List<String> = if (lite) allWallpapers.filter { it !in heavyKeys } else allWallpapers
 
     /** Anything not listed (including removed wallpapers) shows as the starfield. */
     fun wallpaperName(key: String): String = when (key) {
+        "rotate" -> "Rotate (changes by itself)"
         "pic_tv_ring" -> "TV in ring"
         "pic_shield" -> "Neon shield"
         "pic_swirl_ring" -> "Swirl ring"

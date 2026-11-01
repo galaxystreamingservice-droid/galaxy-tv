@@ -30,8 +30,13 @@ class Prefs(ctx: Context) {
         set(v) = sp.edit().putString("accent", v).apply()
 
     var wallpaper: String
-        get() = sp.getString("wallpaper", "stars") ?: "stars"
+        get() = sp.getString("wallpaper", "rotate") ?: "rotate"
         set(v) = sp.edit().putString("wallpaper", v).apply()
+
+    /** Minutes between changes when the background is "rotate". */
+    var rotateMin: Int
+        get() = sp.getInt("rotateMin", 10)
+        set(v) = sp.edit().putInt("rotateMin", v).apply()
 
     /** Color of the running light on the picture and frame wallpapers. */
     var beam: String
@@ -119,7 +124,7 @@ class Prefs(ctx: Context) {
 
     /** Puts the look back to defaults. Keeps name, teams and settings link. */
     fun resetLook() {
-        sp.edit().remove("accent").remove("wallpaper").remove("edge").remove("beam").remove("sports")
+        sp.edit().remove("accent").remove("wallpaper").remove("rotateMin").remove("edge").remove("beam").remove("sports")
             .remove("shelf").remove("textSize").remove("highContrast")
             .remove("quietMode").remove("nightStart").remove("motion").remove("screensaver").apply()
     }

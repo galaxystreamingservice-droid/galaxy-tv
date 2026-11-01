@@ -86,13 +86,14 @@ class HomeActivity : AppCompatActivity() {
     private var pictureView: PictureTraceView? = null
     private lateinit var contentBox: LinearLayout
     private var appliedPad = ""
+    private var bgShownOnce = false
     private val lite: Boolean by lazy { Themes.isLite(this) }
 
     /** The wallpaper actually shown: lower-end sticks never get the moving-light or heavy ones. */
-    private fun wallpaperNow(): String = Themes.effective(prefs.wallpaper, lite)
+    private fun wallpaperNow(): String = Themes.resolve(prefs.wallpaper, lite, prefs.rotateMin)
 
     /** Pictures stay still on lower-end sticks. */
-    private fun motionNow(): String = if (lite && Themes.isPicture(prefs.wallpaper)) "off" else prefs.motion
+    private fun motionNow(): String = if (lite && Themes.isPicture(wallpaperNow())) "off" else prefs.motion
     private lateinit var tonightView: TextView
     private lateinit var sportsBox: LinearLayout
     private lateinit var sportsText: TextView
@@ -150,6 +151,7 @@ class HomeActivity : AppCompatActivity() {
             refreshSports()
             refreshWeather()
             applyNight(false)
+            if (prefs.wallpaper == "rotate") applyTheme()      // picks up the next wallpaper when it is time
             handler.postDelayed(this, 15_000)
         }
     }
@@ -702,6 +704,11 @@ class HomeActivity : AppCompatActivity() {
             if (v != null) bgHolder.addView(v, FrameLayout.LayoutParams(MATCH, MATCH))
             pictureView = v as? PictureTraceView
             pictureView?.post { updatePictureZone() }
+            if (bgShownOnce) {                       // fade the new background in instead of cutting to it
+                bgHolder.alpha = 0f
+                bgHolder.animate().alpha(1f).setDuration(1400).start()
+            }
+            bgShownOnce = true
             centerTitle.visibility = if (wp == "logo" || Themes.isPicture(wp)) View.GONE else View.VISIBLE
             syncInfo()
         }
@@ -1478,8 +1485,21 @@ class HomeActivity : AppCompatActivity() {
         private val hot = ColorUtils.blendARGB(color, Color.WHITE, 0.5f)
         private val a = FloatArray(2)
         private val b = FloatArray(2)
+        private val starPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+        private val starX = FloatArray(90)
+        private val starY = FloatArray(90)
+        private val starPhase = FloatArray(90)
+        private val starFreq = FloatArray(90)
+        private val starSize = FloatArray(90)
 
         init {
+            val rnd = java.util.Random(77)
+            for (i in 0 until 90) {
+                starX[i] = rnd.nextFloat(); starY[i] = rnd.nextFloat()
+                starPhase[i] = rnd.nextFloat() * 6.283f
+                starFreq[i] = 0.6f + rnd.nextFloat() * 1.8f
+                starSize[i] = rnd.nextFloat()
+            }
             try {
                 val r = ctx.resources
                 val id = r.getIdentifier(key, "drawable", ctx.packageName)
@@ -1545,12 +1565,32 @@ class HomeActivity : AppCompatActivity() {
             val bm = bg ?: return
             val iw = bm.width.toFloat()
             val ih = bm.height.toFloat()
-            val cover = maxOf(width / iw, height / ih)
+            val moving = motion != "off"
+            val normal = motion == "normal"
+            val now = SystemClock.uptimeMillis() / 1000f
+            val dn = resources.displayMetrics.density
+            // The backdrop drifts slowly behind the logo (a little zoomed in so the edges never show).
+            val sc = maxOf(width / iw, height / ih) * (if (moving) 1.1f else 1f)
+            val slackX = iw * sc - width
+            val slackY = ih * sc - height
+            val k = if (normal) 1f else 0.4f
+            val px = if (moving) 0.5f + 0.5f * sin(now * k * 0.09f) else 0.5f
+            val py = if (moving) 0.5f + 0.5f * sin(now * k * 0.065f + 1.3f) else 0.5f
             canvas.save()
-            canvas.translate((width - iw * cover) / 2f, (height - ih * cover) / 2f)
-            canvas.scale(cover, cover)
+            canvas.translate(-slackX * px, -slackY * py)
+            canvas.scale(sc, sc)
             canvas.drawBitmap(bm, 0f, 0f, pic)
             canvas.restore()
+            if (moving) {
+                // Twinkling stars that float slowly upward
+                for (i in 0 until starX.size) {
+                    val y = (((starY[i] - now * 0.004f * k * (0.5f + starSize[i])) % 1f) + 1f) % 1f
+                    val tw = 0.5f + 0.5f * sin(now * starFreq[i] * k + starPhase[i])
+                    starPaint.color = Color.argb((40 + 200 * tw * tw).toInt(), 210, 225, 255)
+                    canvas.drawCircle(starX[i] * width, y * height, (0.7f + starSize[i] * 1.6f) * dn, starPaint)
+                }
+                postInvalidateDelayed(if (normal) 33L else 66L)
+            }
 
             val lg = logo ?: return
             // Fit the logo into the clear zone (default: the band above the ticker and shelf)
@@ -1569,10 +1609,8 @@ class HomeActivity : AppCompatActivity() {
             canvas.restore()
             if (motion == "off" || paths.isEmpty()) return
 
-            val d = resources.displayMetrics.density
-            val normal = motion == "normal"
+            val d = dn
             val speed = if (normal) 0.14f else 0.05f       // picture units per second
-            val now = SystemClock.uptimeMillis() / 1000f
             val unit = 2000f * s                            // picture unit -> screen pixels
             val ox = left - cropX * s
             val oy = top - cropY * s
@@ -1600,7 +1638,6 @@ class HomeActivity : AppCompatActivity() {
                 pointAt(pts, cum, head, a)
                 canvas.drawCircle(ox + a[0] * unit, oy + a[1] * unit, 5.5f * d, dot)
             }
-            postInvalidateDelayed(if (normal) 33L else 66L)
         }
     }
 
@@ -1624,7 +1661,7 @@ class HomeActivity : AppCompatActivity() {
             if (radius <= 0f) return
             val still = motion == "off"
             val t = if (still) 0f else SystemClock.uptimeMillis() / 1000f
-            val speed = if (motion == "normal") 1f else 0.3f
+            val speed = if (motion == "normal") 2.4f else 0.8f
             for (i in colors.indices) {
                 val ang = t * speed * (0.16f + 0.05f * i) + i * 2.1f
                 val cx = width * (0.5f + 0.32f * cos(ang + i))
