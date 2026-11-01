@@ -16,13 +16,29 @@ object Themes {
         else -> "Cyan"
     }
 
-    val wallpaperKeys = listOf(
-        "stars", "trace", "aurora", "nebula", "sunset", "ocean", "city", "grid", "mountains", "logo", "plain"
+    /** Picture wallpapers: a light runs along the neon outline drawn in each picture. */
+    val pictureKeys = listOf(
+        "pic_tv_ring_text", "pic_galaxy_ring_text", "pic_tv_ring", "pic_shield", "pic_shield_planet",
+        "pic_swirl_ring", "pic_swirl_galaxy", "pic_monitor_ring"
+    )
+
+    fun isPicture(key: String): Boolean = key in pictureKeys
+
+    val wallpaperKeys = listOf("stars") + pictureKeys + listOf(
+        "trace", "aurora", "nebula", "sunset", "ocean", "city", "grid", "mountains", "logo", "plain"
     )
 
     /** Anything not listed (including the removed "team" wallpaper) shows as the starfield. */
     fun wallpaperName(key: String): String = when (key) {
-        "trace" -> "Light trace"
+        "pic_tv_ring_text" -> "Galaxy Media, solid TV"
+        "pic_galaxy_ring_text" -> "Galaxy Media, outline TV"
+        "pic_tv_ring" -> "TV in ring"
+        "pic_shield" -> "Neon shield"
+        "pic_shield_planet" -> "Planet shield"
+        "pic_swirl_ring" -> "Swirl ring"
+        "pic_swirl_galaxy" -> "Galaxy swirl"
+        "pic_monitor_ring" -> "Monitor ring"
+        "trace" -> "Frame trace"
         "aurora" -> "Aurora drift"
         "nebula" -> "Nebula"
         "sunset" -> "Sunset"

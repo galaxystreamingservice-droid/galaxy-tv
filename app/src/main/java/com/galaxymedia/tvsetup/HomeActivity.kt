@@ -3,6 +3,8 @@ package com.galaxymedia.tvsetup
 import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -38,12 +40,14 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.graphics.ColorUtils
 import androidx.core.widget.TextViewCompat
 import com.galaxymedia.tvsetup.model.DeviceSettings
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -610,7 +614,7 @@ class HomeActivity : AppCompatActivity() {
     /** The date/weather line only shows when the live-game and tonight lines are not using that space. */
     private fun syncInfo() {
         val busy = liveView.visibility == View.VISIBLE || tonightView.visibility == View.VISIBLE
-        infoView.visibility = if (busy || prefs.wallpaper == "logo") View.GONE else View.VISIBLE
+        infoView.visibility = if (busy || prefs.wallpaper == "logo" || Themes.isPicture(prefs.wallpaper)) View.GONE else View.VISIBLE
     }
 
     /** "LIVE Cowboys 14, Giants 7 · Q2 5:20" for one of my teams. Display only. */
@@ -665,12 +669,13 @@ class HomeActivity : AppCompatActivity() {
                 }
                 "trace" -> LightTraceView(this, prefs.motion, accent, if (prefs.edge == "wide") 42f else 18f)
                 "nebula", "sunset", "ocean", "city", "grid", "mountains" -> SceneView(this, prefs.wallpaper, accent)
+                in Themes.pictureKeys -> PictureTraceView(this, prefs.wallpaper, prefs.motion, accent)
                 "aurora" -> AuroraView(this, prefs.motion)
                 "plain" -> null
                 else -> StarfieldView(this, prefs.motion)
             }
             if (v != null) bgHolder.addView(v, FrameLayout.LayoutParams(MATCH, MATCH))
-            centerTitle.visibility = if (prefs.wallpaper == "logo") View.GONE else View.VISIBLE
+            centerTitle.visibility = if (prefs.wallpaper == "logo" || Themes.isPicture(prefs.wallpaper)) View.GONE else View.VISIBLE
             syncInfo()
         }
     }
@@ -1415,6 +1420,118 @@ class HomeActivity : AppCompatActivity() {
             p.color = Color.BLACK
             p.alpha = 90
             canvas.drawRect(0f, 0f, w, h, p)
+        }
+    }
+
+    /**
+     * Picture wallpaper with a light that runs along the neon outlines drawn in the picture (rings,
+     * shields, the TV shape). The outlines were measured from each picture and live in
+     * assets/traces.json as paths in picture pixels / 2000. motion "off" shows the still picture.
+     */
+    private class PictureTraceView(
+        ctx: Context, key: String, private val motion: String, private val color: Int
+    ) : View(ctx) {
+        private var bmp: Bitmap? = null
+        private val paths = ArrayList<FloatArray>()
+        private val cums = ArrayList<FloatArray>()
+        private val pic = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = true }
+        private val glow = Paint(Paint.ANTI_ALIAS_FLAG).apply { strokeCap = Paint.Cap.BUTT }
+        private val core = Paint(Paint.ANTI_ALIAS_FLAG).apply { strokeCap = Paint.Cap.BUTT }
+        private val dot = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = Color.WHITE }
+        private val hot = ColorUtils.blendARGB(color, Color.WHITE, 0.6f)
+        private val a = FloatArray(2)
+        private val b = FloatArray(2)
+
+        init {
+            try {
+                val id = ctx.resources.getIdentifier(key, "drawable", ctx.packageName)
+                if (id != 0) bmp = BitmapFactory.decodeResource(ctx.resources, id)
+            } catch (e: Throwable) { bmp = null }
+            try {
+                val text = ctx.assets.open("traces.json").bufferedReader().use { it.readText() }
+                val arr = JSONObject(text).optJSONArray(key)
+                if (arr != null) for (i in 0 until arr.length()) {
+                    val p = arr.getJSONArray(i)
+                    val n = p.length() / 2
+                    val pts = FloatArray(n * 2) { p.getDouble(it).toFloat() }
+                    val cum = FloatArray(n + 1)
+                    for (j in 0 until n) {
+                        val k = (j + 1) % n
+                        cum[j + 1] = cum[j] + kotlin.math.hypot(pts[k * 2] - pts[j * 2], pts[k * 2 + 1] - pts[j * 2 + 1])
+                    }
+                    paths.add(pts); cums.add(cum)
+                }
+            } catch (e: Exception) { paths.clear(); cums.clear() }
+        }
+
+        override fun onDetachedFromWindow() {
+            super.onDetachedFromWindow()
+            bmp?.recycle()
+            bmp = null
+        }
+
+        /** Point `s` along the closed path (picture units), written into out. */
+        private fun pointAt(pts: FloatArray, cum: FloatArray, s: Float, out: FloatArray) {
+            val n = pts.size / 2
+            val total = cum[n]
+            val d = ((s % total) + total) % total
+            var lo = 0
+            var hi = n
+            while (lo < hi - 1) {
+                val mid = (lo + hi) ushr 1
+                if (cum[mid] <= d) lo = mid else hi = mid
+            }
+            val seg = cum[lo + 1] - cum[lo]
+            val f = if (seg > 0f) (d - cum[lo]) / seg else 0f
+            val k = (lo + 1) % n
+            out[0] = pts[lo * 2] + (pts[k * 2] - pts[lo * 2]) * f
+            out[1] = pts[lo * 2 + 1] + (pts[k * 2 + 1] - pts[lo * 2 + 1]) * f
+        }
+
+        override fun onDraw(canvas: Canvas) {
+            val bm = bmp ?: return
+            val iw = bm.width.toFloat()
+            val ih = bm.height.toFloat()
+            val scale = maxOf(width / iw, height / ih)
+            val offX = (width - iw * scale) / 2f
+            val offY = (height - ih * scale) / 2f
+            canvas.save()
+            canvas.translate(offX, offY)
+            canvas.scale(scale, scale)
+            canvas.drawBitmap(bm, 0f, 0f, pic)
+            canvas.restore()
+            if (motion == "off" || paths.isEmpty()) return
+
+            val d = resources.displayMetrics.density
+            val normal = motion == "normal"
+            val speed = if (normal) 0.14f else 0.05f       // picture units per second
+            val now = SystemClock.uptimeMillis() / 1000f
+            val toScreen = iw * scale                       // picture unit -> screen pixels
+            val tail = 0.16f
+            val steps = 28
+            val step = tail / steps
+            for (pi in paths.indices) {
+                val pts = paths[pi]
+                val cum = cums[pi]
+                val dir = if (pi % 2 == 0) 1f else -1f
+                val head = now * speed * dir
+                for (i in 0 until steps) {
+                    pointAt(pts, cum, head - dir * i * step, a)
+                    pointAt(pts, cum, head - dir * (i + 1) * step, b)
+                    val fade = 1f - i / steps.toFloat()
+                    glow.color = color
+                    glow.alpha = (95 * fade * fade).toInt()
+                    glow.strokeWidth = 11f * d
+                    canvas.drawLine(offX + a[0] * toScreen, offY + a[1] * toScreen, offX + b[0] * toScreen, offY + b[1] * toScreen, glow)
+                    core.color = hot
+                    core.alpha = (240 * fade * fade).toInt()
+                    core.strokeWidth = 3.5f * d
+                    canvas.drawLine(offX + a[0] * toScreen, offY + a[1] * toScreen, offX + b[0] * toScreen, offY + b[1] * toScreen, core)
+                }
+                pointAt(pts, cum, head, a)
+                canvas.drawCircle(offX + a[0] * toScreen, offY + a[1] * toScreen, 5f * d, dot)
+            }
+            postInvalidateDelayed(if (normal) 33L else 66L)
         }
     }
 

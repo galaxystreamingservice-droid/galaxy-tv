@@ -176,7 +176,7 @@ class SettingsActivity : AppCompatActivity() {
         out += Row("Screen edge", if (prefs.edge == "wide") "Wider" else "Normal", true) {
             prefs.edge = if (prefs.edge == "wide") "normal" else "wide"
         }
-        if (prefs.wallpaper == "stars" || prefs.wallpaper == "trace" || prefs.wallpaper == "aurora") {
+        if (prefs.wallpaper == "stars" || prefs.wallpaper == "trace" || prefs.wallpaper == "aurora" || Themes.isPicture(prefs.wallpaper)) {
             out += Row("Background motion", motionName(prefs.motion), true) {
                 prefs.motion = Themes.next(motionModes, prefs.motion)
             }
