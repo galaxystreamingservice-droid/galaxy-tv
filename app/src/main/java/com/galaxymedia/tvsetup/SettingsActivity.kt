@@ -174,12 +174,7 @@ class SettingsActivity : AppCompatActivity() {
         out += Row("Background", Themes.wallpaperName(prefs.wallpaper), true) {
             prefs.wallpaper = Themes.next(Themes.wallpaperKeys, prefs.wallpaper)
         }
-        if (prefs.wallpaper == "team") {
-            out += Row("Team colors", Themes.team(prefs.team).name, true) {
-                prefs.team = Themes.next(Themes.teams.map { it.key }, prefs.team)
-            }
-        }
-        if (prefs.wallpaper == "stars") {
+        if (prefs.wallpaper == "stars" || prefs.wallpaper == "trace" || prefs.wallpaper == "aurora") {
             out += Row("Background motion", motionName(prefs.motion), true) {
                 prefs.motion = Themes.next(motionModes, prefs.motion)
             }

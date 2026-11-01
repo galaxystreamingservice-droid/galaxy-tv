@@ -639,7 +639,7 @@ class HomeActivity : AppCompatActivity() {
             shelfSignature = ""
             sportsSignature = ""
         }
-        val bgKey = prefs.wallpaper + ":" + prefs.team + ":" + prefs.motion
+        val bgKey = prefs.wallpaper + ":" + prefs.motion + ":" + prefs.accent
         if (appliedBackground != bgKey) {
             appliedBackground = bgKey
             bgHolder.removeAllViews()
@@ -648,7 +648,8 @@ class HomeActivity : AppCompatActivity() {
                     scaleType = ImageView.ScaleType.CENTER_CROP
                     setImageResource(R.drawable.galaxy_background)
                 }
-                "team" -> TeamBgView(this, Themes.team(prefs.team))
+                "trace" -> LightTraceView(this, prefs.motion, accent)
+                "aurora" -> AuroraView(this, prefs.motion)
                 "plain" -> null
                 else -> StarfieldView(this, prefs.motion)
             }
@@ -1140,23 +1141,107 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
-    /** Team-color wallpaper: team color fill, big faint team name, bottom stripe. No logos. */
-    private class TeamBgView(ctx: Context, private val team: Themes.TeamTheme) : View(ctx) {
-        private val namePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = team.stripe
-            alpha = 40
-            textAlign = Paint.Align.CENTER
-            letterSpacing = 0.08f
-            typeface = Typeface.DEFAULT_BOLD
+    /**
+     * Light trace: two bright beams with fading tails run around the screen edge in the accent
+     * color. motion "off" shows only the faint frame, "reduced" is a slow lap, "normal" is faster.
+     */
+    private class LightTraceView(ctx: Context, private val motion: String, private val color: Int) : View(ctx) {
+        private val frame = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
+        private val glow = Paint(Paint.ANTI_ALIAS_FLAG).apply { strokeCap = Paint.Cap.BUTT }
+        private val core = Paint(Paint.ANTI_ALIAS_FLAG).apply { strokeCap = Paint.Cap.BUTT }
+        private val dot = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
+        private val a = FloatArray(2)
+        private val b = FloatArray(2)
+
+        /** Point on the rectangle edge, `dist` units along it, starting top-left and going clockwise. */
+        private fun pointAt(dist: Float, l: Float, tp: Float, r: Float, bt: Float, out: FloatArray) {
+            val w = r - l
+            val h = bt - tp
+            val per = 2f * (w + h)
+            var d = ((dist % per) + per) % per
+            if (d < w) { out[0] = l + d; out[1] = tp; return }
+            d -= w
+            if (d < h) { out[0] = r; out[1] = tp + d; return }
+            d -= h
+            if (d < w) { out[0] = r - d; out[1] = bt; return }
+            d -= w
+            out[0] = l; out[1] = bt - d
         }
-        private val stripePaint = Paint().apply { color = team.stripe }
 
         override fun onDraw(canvas: Canvas) {
-            canvas.drawColor(team.bg)
-            namePaint.textSize = height * 0.26f
-            canvas.drawText(team.name.uppercase(), width / 2f, height * 0.58f, namePaint)
             val d = resources.displayMetrics.density
-            canvas.drawRect(0f, height - 8f * d, width.toFloat(), height.toFloat(), stripePaint)
+            val inset = 18f * d
+            val l = inset
+            val tp = inset
+            val r = width - inset
+            val bt = height - inset
+            val per = 2f * ((r - l) + (bt - tp))
+
+            frame.color = color
+            frame.alpha = 45
+            frame.strokeWidth = 1.5f * d
+            canvas.drawRect(l, tp, r, bt, frame)
+            if (motion == "off") return
+
+            val normal = motion == "normal"
+            val lap = if (normal) 14f else 36f
+            val now = SystemClock.uptimeMillis() / 1000f
+            val head = (now / lap) * per
+            val steps = 36
+            val step = per * 0.22f / steps
+            for (beam in 0 until 2) {
+                val h0 = head + beam * per / 2f
+                for (i in 0 until steps) {
+                    pointAt(h0 - i * step, l, tp, r, bt, a)
+                    pointAt(h0 - (i + 1) * step, l, tp, r, bt, b)
+                    val fade = 1f - i / steps.toFloat()
+                    glow.color = color
+                    glow.alpha = (80 * fade * fade).toInt()
+                    glow.strokeWidth = 8f * d
+                    canvas.drawLine(a[0], a[1], b[0], b[1], glow)
+                    core.color = color
+                    core.alpha = (235 * fade * fade).toInt()
+                    core.strokeWidth = 2.5f * d
+                    canvas.drawLine(a[0], a[1], b[0], b[1], core)
+                }
+                pointAt(h0, l, tp, r, bt, a)
+                canvas.drawCircle(a[0], a[1], 3.5f * d, dot)
+            }
+            postInvalidateDelayed(if (normal) 33L else 66L)
+        }
+    }
+
+    /** Aurora drift: three soft color blobs (cyan, purple, green) slowly wander behind everything. */
+    private class AuroraView(ctx: Context, private val motion: String) : View(ctx) {
+        private val colors = intArrayOf(0xFF22D3EE.toInt(), 0xFFA78BFA.toInt(), 0xFF4ADE80.toInt())
+        private val paints = colors.map { Paint(Paint.ANTI_ALIAS_FLAG) }
+        private var radius = 0f
+
+        override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+            radius = w * 0.42f
+            for (i in colors.indices) {
+                val rgb = colors[i] and 0x00FFFFFF
+                paints[i].shader = android.graphics.RadialGradient(
+                    0f, 0f, radius, rgb or (0x46 shl 24), rgb, android.graphics.Shader.TileMode.CLAMP
+                )
+            }
+        }
+
+        override fun onDraw(canvas: Canvas) {
+            if (radius <= 0f) return
+            val still = motion == "off"
+            val t = if (still) 0f else SystemClock.uptimeMillis() / 1000f
+            val speed = if (motion == "normal") 1f else 0.3f
+            for (i in colors.indices) {
+                val ang = t * speed * (0.16f + 0.05f * i) + i * 2.1f
+                val cx = width * (0.5f + 0.32f * cos(ang + i))
+                val cy = height * (0.5f + 0.28f * sin(ang * 1.3f + i * 1.7f))
+                canvas.save()
+                canvas.translate(cx, cy)
+                canvas.drawCircle(0f, 0f, radius, paints[i])
+                canvas.restore()
+            }
+            if (!still) postInvalidateDelayed(if (motion == "normal") 66L else 120L)
         }
     }
 

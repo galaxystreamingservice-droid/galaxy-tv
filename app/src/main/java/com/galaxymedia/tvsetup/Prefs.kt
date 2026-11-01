@@ -33,10 +33,6 @@ class Prefs(ctx: Context) {
         get() = sp.getString("wallpaper", "stars") ?: "stars"
         set(v) = sp.edit().putString("wallpaper", v).apply()
 
-    var team: String
-        get() = sp.getString("team", "cowboys") ?: "cowboys"
-        set(v) = sp.edit().putString("team", v).apply()
-
     /** "off", "my" (my teams only) or "all" (all games today). */
     var sports: String
         get() = sp.getString("sports", "all") ?: "all"
