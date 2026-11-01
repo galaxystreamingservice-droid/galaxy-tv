@@ -1026,6 +1026,15 @@ class HomeActivity : AppCompatActivity() {
         startActivity(Intent(this, CleanupActivity::class.java))
     }
 
+    /** The stick's own settings (Wi-Fi, display, restart). Always reachable from the gear menu. */
+    private fun openFireSettings() {
+        try {
+            startActivity(Intent(android.provider.Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        } catch (e: Exception) {
+            Toast.makeText(this, "Couldn't open the Fire TV settings.", Toast.LENGTH_LONG).show()
+        }
+    }
+
     private fun openStore() {
         val i = packageManager.getLaunchIntentForPackage("com.amazon.venezia")
         if (i == null) Toast.makeText(this, "Press Home, then find the Appstore on the Fire TV home screen.", Toast.LENGTH_LONG).show()
@@ -1035,10 +1044,12 @@ class HomeActivity : AppCompatActivity() {
     private fun showMenu() {
         AlertDialog.Builder(this)
             .setTitle("Galaxy Media")
-            .setItems(arrayOf("Settings", "Setup & updates", "Help: fix it")) { _, which ->
+            .setItems(arrayOf("All apps", "Fire TV settings", "Settings", "Setup & updates", "Help: fix it")) { _, which ->
                 when (which) {
-                    0 -> startActivity(Intent(this, SettingsActivity::class.java))
-                    1 -> openSetup()
+                    0 -> startActivity(Intent(this, AllAppsActivity::class.java))
+                    1 -> openFireSettings()
+                    2 -> startActivity(Intent(this, SettingsActivity::class.java))
+                    3 -> openSetup()
                     else -> startActivity(Intent(this, HelpActivity::class.java))
                 }
             }
