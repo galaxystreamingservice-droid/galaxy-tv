@@ -733,7 +733,7 @@ class HomeActivity : AppCompatActivity() {
             withContext(Dispatchers.Main) {
                 if (isFinishing) return@withContext
                 if (fresh != null) settings = fresh
-                selfUpdateVersion = if (rel != null && updater.isNewer(rel.version, mine)) rel.version else null
+                selfUpdateVersion = if (!packageName.endsWith(".hometest") && rel != null && updater.isNewer(rel.version, mine)) rel.version else null
                 rebuildAll()
             }
         }

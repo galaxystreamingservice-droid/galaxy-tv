@@ -11,8 +11,8 @@ android {
         applicationId = "com.galaxymedia.tvsetup"
         minSdk = 25 // Fire OS 6+ (Fire TV Stick 4K 1st gen and newer)
         targetSdk = 34
-        versionCode = 34
-        versionName = "0.10.1"
+        versionCode = 35
+        versionName = "0.10.2"
     }
 
     // One fixed signing key, so every build installs over the last one without an uninstall.
@@ -26,6 +26,12 @@ android {
     }
 
     buildTypes {
+        // HOME TEST build: installs next to the normal app (own app id, own settings) and also
+        // answers the Home button. Built only by the manual "Build HOME test APK" workflow.
+        create("hometest") {
+            initWith(getByName("debug"))
+            applicationIdSuffix = ".hometest"
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")

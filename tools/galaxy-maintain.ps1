@@ -9,6 +9,11 @@ Nothing is ever uninstalled. Every step except -Reboot can be undone.
   .\galaxy-maintain.ps1 -Ip 192.168.1.172 -AutoStart   let Galaxy Media open itself after a restart
   .\galaxy-maintain.ps1 -Ip 192.168.1.172 -Reboot      reboot the stick at the end
 
+HOME screen test (only with the separate "Galaxy Media HOME TEST" app installed, never on family sticks):
+  .\galaxy-maintain.ps1 -Ip 192.168.1.172 -HomeCheck   read-only: who answers the Home button right now
+  .\galaxy-maintain.ps1 -Ip 192.168.1.172 -HomeLock    Home button opens Galaxy Media (turns Amazon's home off)
+  .\galaxy-maintain.ps1 -Ip 192.168.1.172 -HomeUndo    put Amazon's home screen back
+
 -Yes skips the confirmation question before disabling packages.
 Add -Alexa and/or -Ota to -Debloat if that stick's settings file turns those groups on.
 Stick IP: Settings > My Fire TV > About > Network.
@@ -24,14 +29,17 @@ param(
     [switch]$Ota,
     [switch]$DryRun,
     [switch]$Yes,
-    [switch]$Reboot
+    [switch]$Reboot,
+    [switch]$HomeCheck,
+    [switch]$HomeLock,
+    [switch]$HomeUndo
 )
 
 $ErrorActionPreference = 'Continue'   # adb writes status text to stderr; don't treat that as an error
 $ListUrl = 'https://raw.githubusercontent.com/galaxystreamingservice-droid/galaxy-tv/main/app/src/main/assets/debloat_fireos.json'
 
 # No action chosen = the safe default set.
-if (-not ($Report -or $Debloat -or $Trim -or $AutoStart -or [bool]$Speed -or $Reboot)) {
+if (-not ($Report -or $Debloat -or $Trim -or $AutoStart -or [bool]$Speed -or $Reboot -or $HomeCheck -or $HomeLock -or $HomeUndo)) {
     $Report = $true; $Debloat = $true; $Trim = $true; $AutoStart = $true
 }
 
@@ -196,6 +204,57 @@ if ($Speed) {
     }
     Say "Animation scale set to $scale ($Speed)."
     $changed = $true
+}
+
+# ---- HOME screen test (explicit options only; never part of the default run) ----
+$TestPkg = 'com.galaxymedia.tvsetup.hometest'
+$AmazonHome = 'com.amazon.tv.launcher'
+function Show-Home {
+    Say '  Apps that answer the Home button:'
+    Sh 'cmd package query-activities --brief -a android.intent.action.MAIN -c android.intent.category.HOME' |
+        Where-Object { $_ -match '/' } | ForEach-Object { Say "    $_" }
+    $cur = Sh 'cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.HOME' |
+        Where-Object { $_ -match '/' } | Select-Object -Last 1
+    Say "  The Home button opens now: $cur"
+}
+if ($HomeCheck) {
+    Say '=== HOME CHECK (read only) ==='
+    $inst = Get-List 'pm list packages'
+    Say ("  HOME TEST app installed: " + $(if ($inst -contains $TestPkg) { 'yes' } else { 'no' }))
+    $off = Get-List 'pm list packages -d'
+    Say ("  Amazon home screen: " + $(if ($off -contains $AmazonHome) { 'turned off' } else { 'on' }))
+    Show-Home
+}
+if ($HomeLock) {
+    Say '=== HOME LOCK (test) ==='
+    $inst = Get-List 'pm list packages'
+    if ($inst -notcontains $TestPkg) {
+        Say "  The HOME TEST app ($TestPkg) is not installed on this stick. Install it first." 'Yellow'
+    } else {
+        Write-Host "This makes the Home button open Galaxy Media by turning off Amazon's home screen."
+        Write-Host 'Undo any time with: .\galaxy-maintain.ps1 -Ip <IP> -HomeUndo   (ADB has to stay on).'
+        $go = if ($Yes) { 'y' } else { Read-Host 'Continue? (y/n)' }
+        if ($go -eq 'y') {
+            $r = (Sh "pm disable-user --user 0 $AmazonHome") -join ' '
+            if ($r -match 'Exception|Error|protected|Unknown') {
+                Say "  Fire OS refused: $r" 'Yellow'
+                Say '  Nothing changed. Press Home on the remote: if a "choose a home app" box appears, pick Galaxy Media (home).'
+            } else {
+                Say "  Amazon's home screen is turned off."
+                Sh 'input keyevent KEYCODE_HOME' | Out-Null
+                Start-Sleep -Seconds 3
+            }
+            Show-Home
+        } else { Say '  Skipped by you. Nothing was changed.' }
+    }
+}
+if ($HomeUndo) {
+    Say '=== HOME UNDO ==='
+    $r = (Sh "pm enable $AmazonHome") -join ' '
+    Say "  Amazon home screen: $r"
+    Sh "pm clear-package-preferred-activities $TestPkg" | Out-Null
+    Show-Home
+    Say '  When you are done testing, uninstall the HOME TEST app (Settings > Applications).'
 }
 
 # ---- stamp + save ----
