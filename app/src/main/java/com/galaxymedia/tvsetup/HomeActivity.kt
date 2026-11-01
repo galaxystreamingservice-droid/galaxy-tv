@@ -77,6 +77,9 @@ class HomeActivity : AppCompatActivity() {
     private var gearView: GearView? = null
     private lateinit var bgHolder: FrameLayout
     private lateinit var centerTitle: View
+    private lateinit var infoView: TextView
+    private lateinit var contentBox: LinearLayout
+    private var appliedPad = ""
     private lateinit var tonightView: TextView
     private lateinit var sportsBox: LinearLayout
     private lateinit var sportsText: TextView
@@ -340,10 +343,11 @@ class HomeActivity : AppCompatActivity() {
 
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(56), dp(36), dp(56), dp(40)) // safe margins
+            setPadding(dp(56), dp(36), dp(56), dp(40)) // safe margins (adjusted in applyContentPadding)
             clipChildren = false
             clipToPadding = false
         }
+        contentBox = content
 
         // Top row: clock + greeting on the left, chips + gear on the right
         val top = LinearLayout(this).apply {
@@ -422,14 +426,15 @@ class HomeActivity : AppCompatActivity() {
             setTextColor(textColor)
             gravity = Gravity.CENTER
         })
-        titleBox.addView(TextView(this).apply {
-            text = "FAMILY EDITION"
-            textSize = 14f * prefs.textScale
-            letterSpacing = 0.3f
-            setTextColor(Color.parseColor("#7FD8E8"))
-            gravity = Gravity.CENTER
-        })
         center.addView(titleBox)
+        // Date and weather, shown under the title when no game line is taking that space
+        infoView = TextView(this).apply {
+            textSize = 22f * prefs.textScale
+            setTextColor(mutedColor)
+            gravity = Gravity.CENTER
+            setPadding(0, dp(16), 0, 0)
+        }
+        center.addView(infoView)
         // Display only: not focusable, so the remote skips it and nobody thinks it opens the game.
         tonightView = TextView(this).apply {
             textSize = 18f * prefs.textScale
@@ -461,7 +466,9 @@ class HomeActivity : AppCompatActivity() {
 
         // Sports strip (scrolls sideways by itself; hidden when off or when there are no games)
         sportsText = TextView(this).apply {
-            textSize = 16f * prefs.textScale
+            textSize = 19f * prefs.textScale
+            isHorizontalFadingEdgeEnabled = true
+            setFadingEdgeLength(dp(28))
             setTextColor(textColor)
             setSingleLine(true)
             ellipsize = TextUtils.TruncateAt.MARQUEE
@@ -573,6 +580,7 @@ class HomeActivity : AppCompatActivity() {
             it.state == "in" && (it.homeKey in keys || it.awayKey in keys)
         })
         updateTonight(if (mode == "my" && liveView.visibility != View.VISIBLE) shown else emptyList())
+        syncInfo()
         if (shown.isEmpty()) {
             sportsBox.visibility = View.GONE
             sportsSignature = ""
@@ -597,6 +605,12 @@ class HomeActivity : AppCompatActivity() {
         sportsText.isSelected = false
         sportsText.isSelected = true
         sportsBox.visibility = View.VISIBLE
+    }
+
+    /** The date/weather line only shows when the live-game and tonight lines are not using that space. */
+    private fun syncInfo() {
+        val busy = liveView.visibility == View.VISIBLE || tonightView.visibility == View.VISIBLE
+        infoView.visibility = if (busy || prefs.wallpaper == "logo") View.GONE else View.VISIBLE
     }
 
     /** "LIVE Cowboys 14, Giants 7 · Q2 5:20" for one of my teams. Display only. */
@@ -639,7 +653,8 @@ class HomeActivity : AppCompatActivity() {
             shelfSignature = ""
             sportsSignature = ""
         }
-        val bgKey = prefs.wallpaper + ":" + prefs.motion + ":" + prefs.accent
+        applyContentPadding()
+        val bgKey = prefs.wallpaper + ":" + prefs.motion + ":" + prefs.accent + ":" + prefs.edge
         if (appliedBackground != bgKey) {
             appliedBackground = bgKey
             bgHolder.removeAllViews()
@@ -648,13 +663,15 @@ class HomeActivity : AppCompatActivity() {
                     scaleType = ImageView.ScaleType.CENTER_CROP
                     setImageResource(R.drawable.galaxy_background)
                 }
-                "trace" -> LightTraceView(this, prefs.motion, accent)
+                "trace" -> LightTraceView(this, prefs.motion, accent, if (prefs.edge == "wide") 42f else 18f)
+                "nebula", "sunset", "ocean", "city", "grid", "mountains" -> SceneView(this, prefs.wallpaper, accent)
                 "aurora" -> AuroraView(this, prefs.motion)
                 "plain" -> null
                 else -> StarfieldView(this, prefs.motion)
             }
             if (v != null) bgHolder.addView(v, FrameLayout.LayoutParams(MATCH, MATCH))
             centerTitle.visibility = if (prefs.wallpaper == "logo") View.GONE else View.VISIBLE
+            syncInfo()
         }
     }
 
@@ -716,7 +733,8 @@ class HomeActivity : AppCompatActivity() {
             else -> "Good night"
         }
         val name = prefs.userName.trim().replaceFirstChar { it.uppercase() }
-        greetingView.text = (if (name.isEmpty()) phrase else "$phrase, $name") + weatherSuffix()
+        greetingView.text = if (name.isEmpty()) phrase else "$phrase, $name"
+        infoView.text = SimpleDateFormat("EEEE, MMMM d", Locale.getDefault()).format(Date()) + weatherSuffix()
     }
 
     private fun updateNotice() {
@@ -745,11 +763,8 @@ class HomeActivity : AppCompatActivity() {
         val endOfDay = date.time + 86_399_000L
         val days = Math.floorDiv(endOfDay - System.currentTimeMillis(), 86_400_000L).toInt()
         val nice = SimpleDateFormat("MMM d", Locale.getDefault()).format(date)
-        val color = when {
-            days <= 3 -> red
-            days <= 14 -> amber
-            else -> mutedColor
-        }
+        if (days > 14) return null   // far away: nothing to remind about yet
+        val color = if (days <= 3) red else amber
         return ChipSpec(if (days < 0) "IPTV expired $nice" else "IPTV renews $nice", color, null)
     }
 
@@ -795,6 +810,27 @@ class HomeActivity : AppCompatActivity() {
         if (hadGearFocus) gear.requestFocus()
     }
 
+    /** Keeps the home screen inside the light-trace frame, and further from the edge if "Screen edge" is Wider. */
+    private fun applyContentPadding() {
+        val trace = prefs.wallpaper == "trace"
+        val wide = prefs.edge == "wide"
+        val key = "$trace:$wide"
+        if (key == appliedPad) return
+        appliedPad = key
+        val extra = if (wide) 24 else 0
+        contentBox.setPadding(
+            dp((if (trace) 72 else 56) + extra), dp((if (trace) 52 else 36) + extra),
+            dp((if (trace) 72 else 56) + extra), dp((if (trace) 56 else 40) + extra)
+        )
+        shelfSignature = ""   // tile widths depend on the padding
+    }
+
+    /** Tile width that makes every tile (including "More apps") fit inside the padded screen. */
+    private fun shelfTileWidth(count: Int): Int {
+        val avail = resources.displayMetrics.widthPixels - contentBox.paddingLeft - contentBox.paddingRight - dp(16)
+        return (avail / count.coerceAtLeast(1) - dp(16)).coerceIn(dp(96), dp(136))
+    }
+
     private fun rebuildShelf() {
         placeShelf()
         val hidden = prefs.hiddenApps
@@ -805,6 +841,7 @@ class HomeActivity : AppCompatActivity() {
 
         val focusedTag = shelfRow.focusedChild?.tag?.toString()
         shelfRow.removeAllViews()
+        val tileW = shelfTileWidth(apps.size + 1)
         apps.forEach { a ->
             val installed = updater.isInstalled(a.packageName)
             val icon: Drawable? = if (installed) {
@@ -816,21 +853,21 @@ class HomeActivity : AppCompatActivity() {
                 if (i == null) Toast.makeText(this, "${a.name} isn't installed yet. Open Setup & updates.", Toast.LENGTH_LONG).show()
                 else startActivity(i)
             }
-            shelfRow.addView(tile, tileParams())
+            shelfRow.addView(tile, tileParams(tileW))
         }
-        shelfRow.addView(makeTile("More apps", null, "+", "more") { openStore() }, tileParams())
+        shelfRow.addView(makeTile("More apps", null, "+", "more") { openStore() }, tileParams(tileW))
         hintView.text = if (settings == null) "Press the gear, then Setup & updates, to add your settings link." else ""
         if (focusedTag != null) shelfRow.findViewWithTag<View>(focusedTag)?.requestFocus()
     }
 
     // ───────────────────────── pieces ─────────────────────────
 
-    private fun tileParams(): LinearLayout.LayoutParams {
+    private fun tileParams(width: Int = dp(136)): LinearLayout.LayoutParams {
         return if (prefs.shelf == "left") {
             // Shorter tiles in the rail so about four fit on screen; the rail scrolls for the rest.
             LinearLayout.LayoutParams(dp(136), dp(84)).apply { topMargin = dp(4); bottomMargin = dp(4) }
         } else {
-            LinearLayout.LayoutParams(dp(136), dp(108)).apply { marginStart = dp(8); marginEnd = dp(8) }
+            LinearLayout.LayoutParams(width, dp(108)).apply { marginStart = dp(8); marginEnd = dp(8) }
         }
     }
 
@@ -1143,9 +1180,12 @@ class HomeActivity : AppCompatActivity() {
 
     /**
      * Light trace: two bright beams with fading tails run around the screen edge in the accent
-     * color. motion "off" shows only the faint frame, "reduced" is a slow lap, "normal" is faster.
+     * color, curving around rounded corners. motion "off" shows only the faint frame, "reduced"
+     * is a slow lap, "normal" is faster.
      */
-    private class LightTraceView(ctx: Context, private val motion: String, private val color: Int) : View(ctx) {
+    private class LightTraceView(
+        ctx: Context, private val motion: String, private val color: Int, private val insetDp: Float
+    ) : View(ctx) {
         private val frame = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
         private val glow = Paint(Paint.ANTI_ALIAS_FLAG).apply { strokeCap = Paint.Cap.BUTT }
         private val core = Paint(Paint.ANTI_ALIAS_FLAG).apply { strokeCap = Paint.Cap.BUTT }
@@ -1153,61 +1193,228 @@ class HomeActivity : AppCompatActivity() {
         private val a = FloatArray(2)
         private val b = FloatArray(2)
 
-        /** Point on the rectangle edge, `dist` units along it, starting top-left and going clockwise. */
-        private fun pointAt(dist: Float, l: Float, tp: Float, r: Float, bt: Float, out: FloatArray) {
-            val w = r - l
-            val h = bt - tp
-            val per = 2f * (w + h)
+        private fun perimeter(l: Float, tp: Float, r: Float, bt: Float, rad: Float): Float =
+            2f * ((r - l) - 2f * rad) + 2f * ((bt - tp) - 2f * rad) + 2f * PI.toFloat() * rad
+
+        /** Point on the rounded rectangle, `dist` along it from the top edge going clockwise. */
+        private fun pointAt(dist: Float, l: Float, tp: Float, r: Float, bt: Float, rad: Float, out: FloatArray) {
+            val sw = (r - l) - 2f * rad
+            val sh = (bt - tp) - 2f * rad
+            val arc = (PI.toFloat() / 2f) * rad
+            val per = 2f * sw + 2f * sh + 4f * arc
             var d = ((dist % per) + per) % per
-            if (d < w) { out[0] = l + d; out[1] = tp; return }
-            d -= w
-            if (d < h) { out[0] = r; out[1] = tp + d; return }
-            d -= h
-            if (d < w) { out[0] = r - d; out[1] = bt; return }
-            d -= w
-            out[0] = l; out[1] = bt - d
+            if (d < sw) { out[0] = l + rad + d; out[1] = tp; return }
+            d -= sw
+            if (d < arc) { val t = d / rad; out[0] = r - rad + sin(t) * rad; out[1] = tp + rad - cos(t) * rad; return }
+            d -= arc
+            if (d < sh) { out[0] = r; out[1] = tp + rad + d; return }
+            d -= sh
+            if (d < arc) { val t = d / rad; out[0] = r - rad + cos(t) * rad; out[1] = bt - rad + sin(t) * rad; return }
+            d -= arc
+            if (d < sw) { out[0] = r - rad - d; out[1] = bt; return }
+            d -= sw
+            if (d < arc) { val t = d / rad; out[0] = l + rad - sin(t) * rad; out[1] = bt - rad + cos(t) * rad; return }
+            d -= arc
+            if (d < sh) { out[0] = l; out[1] = bt - rad - d; return }
+            d -= sh
+            val t = d / rad
+            out[0] = l + rad - cos(t) * rad
+            out[1] = tp + rad - sin(t) * rad
         }
 
         override fun onDraw(canvas: Canvas) {
-            val d = resources.displayMetrics.density
-            val inset = 18f * d
+            val dn = resources.displayMetrics.density
+            val inset = insetDp * dn
             val l = inset
             val tp = inset
             val r = width - inset
             val bt = height - inset
-            val per = 2f * ((r - l) + (bt - tp))
+            val rad = 28f * dn
+            val per = perimeter(l, tp, r, bt, rad)
 
             frame.color = color
             frame.alpha = 45
-            frame.strokeWidth = 1.5f * d
-            canvas.drawRect(l, tp, r, bt, frame)
+            frame.strokeWidth = 1.5f * dn
+            canvas.drawRoundRect(l, tp, r, bt, rad, rad, frame)
             if (motion == "off") return
 
             val normal = motion == "normal"
             val lap = if (normal) 14f else 36f
             val now = SystemClock.uptimeMillis() / 1000f
             val head = (now / lap) * per
-            val steps = 36
+            val steps = 40
             val step = per * 0.22f / steps
             for (beam in 0 until 2) {
                 val h0 = head + beam * per / 2f
                 for (i in 0 until steps) {
-                    pointAt(h0 - i * step, l, tp, r, bt, a)
-                    pointAt(h0 - (i + 1) * step, l, tp, r, bt, b)
+                    pointAt(h0 - i * step, l, tp, r, bt, rad, a)
+                    pointAt(h0 - (i + 1) * step, l, tp, r, bt, rad, b)
                     val fade = 1f - i / steps.toFloat()
                     glow.color = color
                     glow.alpha = (80 * fade * fade).toInt()
-                    glow.strokeWidth = 8f * d
+                    glow.strokeWidth = 8f * dn
                     canvas.drawLine(a[0], a[1], b[0], b[1], glow)
                     core.color = color
                     core.alpha = (235 * fade * fade).toInt()
-                    core.strokeWidth = 2.5f * d
+                    core.strokeWidth = 2.5f * dn
                     canvas.drawLine(a[0], a[1], b[0], b[1], core)
                 }
-                pointAt(h0, l, tp, r, bt, a)
-                canvas.drawCircle(a[0], a[1], 3.5f * d, dot)
+                pointAt(h0, l, tp, r, bt, rad, a)
+                canvas.drawCircle(a[0], a[1], 3.5f * dn, dot)
             }
             postInvalidateDelayed(if (normal) 33L else 66L)
+        }
+    }
+
+    /**
+     * Still picture backgrounds drawn by the app (no image files): nebula, sunset, ocean,
+     * midnight city, neon grid, mountains. They draw once and are dimmed so the text stays readable.
+     */
+    private class SceneView(ctx: Context, private val kind: String, private val accent: Int) : View(ctx) {
+        private val p = Paint(Paint.ANTI_ALIAS_FLAG)
+        private val path = android.graphics.Path()
+
+        private fun sky(canvas: Canvas, w: Float, h: Float, colors: IntArray, pos: FloatArray?) {
+            p.style = Paint.Style.FILL
+            p.shader = android.graphics.LinearGradient(0f, 0f, 0f, h, colors, pos, android.graphics.Shader.TileMode.CLAMP)
+            canvas.drawRect(0f, 0f, w, h, p)
+            p.shader = null
+        }
+
+        private fun glowAt(canvas: Canvas, cx: Float, cy: Float, r: Float, argb: Int) {
+            val rgb = argb and 0x00FFFFFF
+            p.style = Paint.Style.FILL
+            p.shader = android.graphics.RadialGradient(cx, cy, r, argb, rgb, android.graphics.Shader.TileMode.CLAMP)
+            canvas.drawCircle(cx, cy, r, p)
+            p.shader = null
+        }
+
+        override fun onDraw(canvas: Canvas) {
+            val w = width.toFloat()
+            val h = height.toFloat()
+            val d = resources.displayMetrics.density
+            when (kind) {
+                "nebula" -> {
+                    canvas.drawColor(0xFF050816.toInt())
+                    glowAt(canvas, w * 0.20f, h * 0.30f, w * 0.45f, 0x6A7C3AED)
+                    glowAt(canvas, w * 0.75f, h * 0.25f, w * 0.40f, 0x5A2563EB)
+                    glowAt(canvas, w * 0.55f, h * 0.78f, w * 0.50f, 0x50DB2777)
+                    glowAt(canvas, w * 0.92f, h * 0.88f, w * 0.35f, 0x4010B981)
+                    val rnd = Random(5)
+                    p.color = Color.WHITE
+                    for (i in 0 until 90) {
+                        p.alpha = 60 + rnd.nextInt(150)
+                        canvas.drawCircle(rnd.nextFloat() * w, rnd.nextFloat() * h, (0.8f + rnd.nextFloat() * 1.4f) * d, p)
+                    }
+                }
+                "sunset" -> {
+                    sky(canvas, w, h, intArrayOf(0xFF1B1035.toInt(), 0xFF5B2A86.toInt(), 0xFFE0457B.toInt(), 0xFFFF9A3C.toInt()),
+                        floatArrayOf(0f, 0.45f, 0.78f, 1f))
+                    glowAt(canvas, w * 0.5f, h * 0.80f, h * 0.45f, 0x66FFD27F)
+                    p.color = 0xFFFFD27F.toInt(); p.alpha = 235
+                    canvas.drawCircle(w * 0.5f, h * 0.80f, h * 0.15f, p)
+                    p.color = 0xFF0B0714.toInt(); p.alpha = 255
+                    canvas.drawRect(0f, h * 0.86f, w, h, p)
+                }
+                "ocean" -> {
+                    sky(canvas, w, h, intArrayOf(0xFF03121F.toInt(), 0xFF0B3A5B.toInt()), null)
+                    p.style = Paint.Style.STROKE
+                    p.strokeWidth = 2f * d
+                    p.color = 0xFF22D3EE.toInt()
+                    for (i in 0 until 7) {
+                        p.alpha = 30 + i * 8
+                        val base = h * (0.52f + i * 0.07f)
+                        val amp = h * (0.008f + i * 0.003f)
+                        path.reset()
+                        var x = 0f
+                        path.moveTo(0f, base)
+                        while (x <= w) {
+                            path.lineTo(x, base + amp * sin(x / w * 6.2832f * (2.5f + i * 0.3f) + i))
+                            x += 20f
+                        }
+                        canvas.drawPath(path, p)
+                    }
+                    p.style = Paint.Style.FILL
+                }
+                "city" -> {
+                    sky(canvas, w, h, intArrayOf(0xFF060B1E.toInt(), 0xFF1B2547.toInt(), 0xFF3B2A5A.toInt()), floatArrayOf(0f, 0.7f, 1f))
+                    p.color = 0xFFFFF3C4.toInt(); p.alpha = 220
+                    canvas.drawCircle(w * 0.82f, h * 0.2f, h * 0.05f, p)
+                    val rnd = Random(9)
+                    for (layer in 0 until 2) {
+                        var x = -20f * d
+                        while (x < w) {
+                            val bw = (40f + rnd.nextFloat() * 50f) * d
+                            val bh = h * (if (layer == 0) 0.18f + rnd.nextFloat() * 0.26f else 0.12f + rnd.nextFloat() * 0.34f)
+                            p.color = if (layer == 0) 0xFF10152B.toInt() else 0xFF070A14.toInt()
+                            p.alpha = 255
+                            canvas.drawRect(x, h - bh, x + bw, h, p)
+                            if (layer == 1) {
+                                p.color = 0xFFFFD27F.toInt()
+                                var wy = h - bh + 10f * d
+                                while (wy < h - 12f * d) {
+                                    var wx = x + 8f * d
+                                    while (wx < x + bw - 10f * d) {
+                                        if (rnd.nextFloat() < 0.45f) {
+                                            p.alpha = 90 + rnd.nextInt(140)
+                                            canvas.drawRect(wx, wy, wx + 5f * d, wy + 7f * d, p)
+                                        }
+                                        wx += 14f * d
+                                    }
+                                    wy += 18f * d
+                                }
+                            }
+                            x += bw + (2f + rnd.nextFloat() * 6f) * d
+                        }
+                    }
+                }
+                "grid" -> {
+                    sky(canvas, w, h, intArrayOf(0xFF0B0221.toInt(), 0xFF2A0A4A.toInt()), null)
+                    val hor = h * 0.56f
+                    p.shader = android.graphics.LinearGradient(0f, hor - h * 0.22f, 0f, hor, 0xFFFFD166.toInt(), 0xFFEF476F.toInt(), android.graphics.Shader.TileMode.CLAMP)
+                    canvas.drawCircle(w * 0.5f, hor - h * 0.02f, h * 0.2f, p)
+                    p.shader = null
+                    p.color = 0xFF0B0221.toInt(); p.alpha = 255
+                    canvas.drawRect(0f, hor, w, h, p)
+                    p.style = Paint.Style.STROKE
+                    p.strokeWidth = 1.5f * d
+                    p.color = accent; p.alpha = 150
+                    for (k in 1..8) {
+                        val y = hor + (h - hor) * (k / 8f) * (k / 8f)
+                        canvas.drawLine(0f, y, w, y, p)
+                    }
+                    for (i in -12..12) {
+                        canvas.drawLine(w * 0.5f + i * w * 0.02f, hor, w * 0.5f + i * w * 0.14f, h, p)
+                    }
+                    p.style = Paint.Style.FILL
+                }
+                "mountains" -> {
+                    sky(canvas, w, h, intArrayOf(0xFF0F1230.toInt(), 0xFF3A2E6B.toInt(), 0xFFE58C6B.toInt()), floatArrayOf(0f, 0.55f, 1f))
+                    val layers = intArrayOf(0xFF2A2350.toInt(), 0xFF1A1638.toInt(), 0xFF0C0A1E.toInt())
+                    for (k in 0 until 3) {
+                        val base = h * (0.60f + k * 0.10f)
+                        val amp = h * (0.13f - k * 0.02f)
+                        path.reset()
+                        path.moveTo(0f, h)
+                        var x = 0f
+                        while (x <= w + 12f) {
+                            val y = base - amp * (0.55f + 0.45f * sin(x / w * (5f + k * 2f) + k * 1.7f) + 0.25f * sin(x / w * (13f + k * 3f) + k))
+                            path.lineTo(x, y)
+                            x += 12f
+                        }
+                        path.lineTo(w + 12f, h)
+                        path.close()
+                        p.color = layers[k]; p.alpha = 255
+                        canvas.drawPath(path, p)
+                    }
+                }
+            }
+            // Dim everything a little so clocks and chips stay easy to read.
+            p.shader = null
+            p.style = Paint.Style.FILL
+            p.color = Color.BLACK
+            p.alpha = 90
+            canvas.drawRect(0f, 0f, w, h, p)
         }
     }
 

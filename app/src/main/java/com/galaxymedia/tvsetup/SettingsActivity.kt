@@ -171,8 +171,10 @@ class SettingsActivity : AppCompatActivity() {
         }
         val hideIdx = out.size
         out += Row("Hidden apps", if (prefs.hiddenApps.isEmpty()) "None" else "${prefs.hiddenApps.size} hidden", false) { pickHidden(hideIdx) }
-        out += Row("Background", Themes.wallpaperName(prefs.wallpaper), true) {
-            prefs.wallpaper = Themes.next(Themes.wallpaperKeys, prefs.wallpaper)
+        val bgIdx = out.size
+        out += Row("Background", Themes.wallpaperName(prefs.wallpaper), false) { pickBackground(bgIdx) }
+        out += Row("Screen edge", if (prefs.edge == "wide") "Wider" else "Normal", true) {
+            prefs.edge = if (prefs.edge == "wide") "normal" else "wide"
         }
         if (prefs.wallpaper == "stars" || prefs.wallpaper == "trace" || prefs.wallpaper == "aurora") {
             out += Row("Background motion", motionName(prefs.motion), true) {
@@ -307,6 +309,21 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     // ── my teams: pick a league, then tick the teams you follow ──
+
+    private fun pickBackground(rowIndex: Int) {
+        val keys = Themes.wallpaperKeys
+        val names = keys.map { Themes.wallpaperName(it) }.toTypedArray()
+        val current = keys.indexOf(prefs.wallpaper).coerceAtLeast(0)
+        AlertDialog.Builder(this)
+            .setTitle("Background")
+            .setSingleChoiceItems(names, current) { dialog, which ->
+                prefs.wallpaper = keys[which]
+                dialog.dismiss()
+                render(rowIndex)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
 
     private fun pickHidden(rowIndex: Int) {
         val apps = try {

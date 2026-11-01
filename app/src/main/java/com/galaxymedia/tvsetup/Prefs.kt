@@ -33,6 +33,11 @@ class Prefs(ctx: Context) {
         get() = sp.getString("wallpaper", "stars") ?: "stars"
         set(v) = sp.edit().putString("wallpaper", v).apply()
 
+    /** "normal" or "wide": how far the home screen stays from the TV edge (some TVs crop the edge). */
+    var edge: String
+        get() = sp.getString("edge", "normal") ?: "normal"
+        set(v) = sp.edit().putString("edge", v).apply()
+
     /** "off", "my" (my teams only) or "all" (all games today). */
     var sports: String
         get() = sp.getString("sports", "all") ?: "all"
@@ -109,7 +114,7 @@ class Prefs(ctx: Context) {
 
     /** Puts the look back to defaults. Keeps name, teams and settings link. */
     fun resetLook() {
-        sp.edit().remove("accent").remove("wallpaper").remove("team").remove("sports")
+        sp.edit().remove("accent").remove("wallpaper").remove("edge").remove("sports")
             .remove("shelf").remove("textSize").remove("highContrast")
             .remove("quietMode").remove("nightStart").remove("motion").remove("screensaver").apply()
     }

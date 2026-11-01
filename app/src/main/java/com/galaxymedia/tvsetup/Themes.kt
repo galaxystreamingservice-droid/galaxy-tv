@@ -16,12 +16,20 @@ object Themes {
         else -> "Cyan"
     }
 
-    val wallpaperKeys = listOf("stars", "trace", "aurora", "logo", "plain")
+    val wallpaperKeys = listOf(
+        "stars", "trace", "aurora", "nebula", "sunset", "ocean", "city", "grid", "mountains", "logo", "plain"
+    )
 
     /** Anything not listed (including the removed "team" wallpaper) shows as the starfield. */
     fun wallpaperName(key: String): String = when (key) {
         "trace" -> "Light trace"
         "aurora" -> "Aurora drift"
+        "nebula" -> "Nebula"
+        "sunset" -> "Sunset"
+        "ocean" -> "Ocean"
+        "city" -> "Midnight city"
+        "grid" -> "Neon grid"
+        "mountains" -> "Mountains"
         "logo" -> "Galaxy Media logo"
         "plain" -> "Plain dark"
         else -> "Starfield"
