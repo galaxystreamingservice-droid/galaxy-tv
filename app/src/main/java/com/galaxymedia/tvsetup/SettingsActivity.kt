@@ -156,9 +156,8 @@ class SettingsActivity : AppCompatActivity() {
     private fun rows(): List<Row> {
         val out = mutableListOf<Row>()
         out += Row("Name", prefs.userName.ifBlank { "Not set" }, false) { askName() }
-        out += Row("Accent color", Themes.accentName(prefs.accent), true) {
-            prefs.accent = Themes.next(Themes.accentKeys, prefs.accent)
-        }
+        val accIdx = out.size
+        out += Row("Accent color", Themes.accentName(prefs.accent), false) { pickAccent(accIdx) }
         out += Row("Sports", sportsName(prefs.sports), true) {
             prefs.sports = Themes.next(sportsModes, prefs.sports)
         }
@@ -172,11 +171,18 @@ class SettingsActivity : AppCompatActivity() {
         val hideIdx = out.size
         out += Row("Hidden apps", if (prefs.hiddenApps.isEmpty()) "None" else "${prefs.hiddenApps.size} hidden", false) { pickHidden(hideIdx) }
         val bgIdx = out.size
-        out += Row("Background", Themes.wallpaperName(prefs.wallpaper), false) { pickBackground(bgIdx) }
+        out += Row("Background", Themes.wallpaperName(Themes.effective(prefs.wallpaper, Themes.isLite(this))), false) { pickBackground(bgIdx) }
         out += Row("Screen edge", if (prefs.edge == "wide") "Wider" else "Normal", true) {
             prefs.edge = if (prefs.edge == "wide") "normal" else "wide"
         }
-        if (prefs.wallpaper == "stars" || prefs.wallpaper == "trace" || prefs.wallpaper == "aurora" || Themes.isPicture(prefs.wallpaper)) {
+        val lite = Themes.isLite(this)
+        val wp = Themes.effective(prefs.wallpaper, lite)
+        if (!lite && (wp == "trace" || Themes.isPicture(wp))) {
+            out += Row("Light color", Themes.beamName(prefs.beam), true) {
+                prefs.beam = Themes.next(Themes.beamKeys, prefs.beam)
+            }
+        }
+        if (wp == "stars" || (!lite && (wp == "trace" || wp == "aurora" || Themes.isPicture(wp)))) {
             out += Row("Background motion", motionName(prefs.motion), true) {
                 prefs.motion = Themes.next(motionModes, prefs.motion)
             }
@@ -310,8 +316,22 @@ class SettingsActivity : AppCompatActivity() {
 
     // ── my teams: pick a league, then tick the teams you follow ──
 
+    private fun pickAccent(rowIndex: Int) {
+        val keys = Themes.accentKeys
+        val names = keys.map { Themes.accentName(it) }.toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle("Accent color")
+            .setSingleChoiceItems(names, keys.indexOf(prefs.accent).coerceAtLeast(0)) { dialog, which ->
+                prefs.accent = keys[which]
+                dialog.dismiss()
+                render(rowIndex)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
     private fun pickBackground(rowIndex: Int) {
-        val keys = Themes.wallpaperKeys
+        val keys = Themes.wallpapersFor(Themes.isLite(this))
         val names = keys.map { Themes.wallpaperName(it) }.toTypedArray()
         val current = keys.indexOf(prefs.wallpaper).coerceAtLeast(0)
         AlertDialog.Builder(this)

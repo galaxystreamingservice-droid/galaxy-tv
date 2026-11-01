@@ -84,6 +84,13 @@ class HomeActivity : AppCompatActivity() {
     private lateinit var infoView: TextView
     private lateinit var contentBox: LinearLayout
     private var appliedPad = ""
+    private val lite: Boolean by lazy { Themes.isLite(this) }
+
+    /** The wallpaper actually shown: lower-end sticks never get the moving-light or heavy ones. */
+    private fun wallpaperNow(): String = Themes.effective(prefs.wallpaper, lite)
+
+    /** Pictures stay still on lower-end sticks. */
+    private fun motionNow(): String = if (lite && Themes.isPicture(prefs.wallpaper)) "off" else prefs.motion
     private lateinit var tonightView: TextView
     private lateinit var sportsBox: LinearLayout
     private lateinit var sportsText: TextView
@@ -614,7 +621,7 @@ class HomeActivity : AppCompatActivity() {
     /** The date/weather line only shows when the live-game and tonight lines are not using that space. */
     private fun syncInfo() {
         val busy = liveView.visibility == View.VISIBLE || tonightView.visibility == View.VISIBLE
-        infoView.visibility = if (busy || prefs.wallpaper == "logo" || Themes.isPicture(prefs.wallpaper)) View.GONE else View.VISIBLE
+        infoView.visibility = if (busy || wallpaperNow() == "logo" || Themes.isPicture(wallpaperNow())) View.GONE else View.VISIBLE
     }
 
     /** "LIVE Cowboys 14, Giants 7 · Q2 5:20" for one of my teams. Display only. */
@@ -658,24 +665,25 @@ class HomeActivity : AppCompatActivity() {
             sportsSignature = ""
         }
         applyContentPadding()
-        val bgKey = prefs.wallpaper + ":" + prefs.motion + ":" + prefs.accent + ":" + prefs.edge
+        val bgKey = wallpaperNow() + ":" + motionNow() + ":" + prefs.accent + ":" + prefs.edge + ":" + prefs.beam
         if (appliedBackground != bgKey) {
             appliedBackground = bgKey
             bgHolder.removeAllViews()
-            val v: View? = when (prefs.wallpaper) {
+            val wp = wallpaperNow()
+            val v: View? = when (wp) {
                 "logo" -> ImageView(this).apply {
                     scaleType = ImageView.ScaleType.CENTER_CROP
                     setImageResource(R.drawable.galaxy_background)
                 }
-                "trace" -> LightTraceView(this, prefs.motion, accent, if (prefs.edge == "wide") 42f else 18f)
-                "nebula", "sunset", "ocean", "city", "grid", "mountains" -> SceneView(this, prefs.wallpaper, accent)
-                in Themes.pictureKeys -> PictureTraceView(this, prefs.wallpaper, prefs.motion, accent)
-                "aurora" -> AuroraView(this, prefs.motion)
+                "trace" -> LightTraceView(this, motionNow(), accent, Themes.beamColor(prefs.beam), if (prefs.edge == "wide") 42f else 18f)
+                "nebula", "sunset", "ocean", "city", "grid", "mountains" -> SceneView(this, wp, accent)
+                in Themes.pictureKeys -> PictureTraceView(this, wp, motionNow(), Themes.beamColor(prefs.beam))
+                "aurora" -> AuroraView(this, motionNow())
                 "plain" -> null
-                else -> StarfieldView(this, prefs.motion)
+                else -> StarfieldView(this, motionNow())
             }
             if (v != null) bgHolder.addView(v, FrameLayout.LayoutParams(MATCH, MATCH))
-            centerTitle.visibility = if (prefs.wallpaper == "logo" || Themes.isPicture(prefs.wallpaper)) View.GONE else View.VISIBLE
+            centerTitle.visibility = if (wp == "logo" || Themes.isPicture(wp)) View.GONE else View.VISIBLE
             syncInfo()
         }
     }
@@ -817,7 +825,7 @@ class HomeActivity : AppCompatActivity() {
 
     /** Keeps the home screen inside the light-trace frame, and further from the edge if "Screen edge" is Wider. */
     private fun applyContentPadding() {
-        val trace = prefs.wallpaper == "trace"
+        val trace = wallpaperNow() == "trace"
         val wide = prefs.edge == "wide"
         val key = "$trace:$wide"
         if (key == appliedPad) return
@@ -1189,8 +1197,9 @@ class HomeActivity : AppCompatActivity() {
      * is a slow lap, "normal" is faster.
      */
     private class LightTraceView(
-        ctx: Context, private val motion: String, private val color: Int, private val insetDp: Float
+        ctx: Context, private val motion: String, private val color: Int, private val beamColor: Int, private val insetDp: Float
     ) : View(ctx) {
+        private val hot = ColorUtils.blendARGB(beamColor, Color.WHITE, 0.55f)
         private val frame = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
         private val glow = Paint(Paint.ANTI_ALIAS_FLAG).apply { strokeCap = Paint.Cap.BUTT }
         private val core = Paint(Paint.ANTI_ALIAS_FLAG).apply { strokeCap = Paint.Cap.BUTT }
@@ -1255,13 +1264,13 @@ class HomeActivity : AppCompatActivity() {
                     pointAt(h0 - i * step, l, tp, r, bt, rad, a)
                     pointAt(h0 - (i + 1) * step, l, tp, r, bt, rad, b)
                     val fade = 1f - i / steps.toFloat()
-                    glow.color = color
-                    glow.alpha = (80 * fade * fade).toInt()
-                    glow.strokeWidth = 8f * dn
+                    glow.color = beamColor
+                    glow.alpha = (95 * fade * fade).toInt()
+                    glow.strokeWidth = 10f * dn
                     canvas.drawLine(a[0], a[1], b[0], b[1], glow)
-                    core.color = color
-                    core.alpha = (235 * fade * fade).toInt()
-                    core.strokeWidth = 2.5f * dn
+                    core.color = hot
+                    core.alpha = (240 * fade * fade).toInt()
+                    core.strokeWidth = 3.5f * dn
                     canvas.drawLine(a[0], a[1], b[0], b[1], core)
                 }
                 pointAt(h0, l, tp, r, bt, rad, a)
@@ -1438,7 +1447,7 @@ class HomeActivity : AppCompatActivity() {
         private val glow = Paint(Paint.ANTI_ALIAS_FLAG).apply { strokeCap = Paint.Cap.BUTT }
         private val core = Paint(Paint.ANTI_ALIAS_FLAG).apply { strokeCap = Paint.Cap.BUTT }
         private val dot = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = Color.WHITE }
-        private val hot = ColorUtils.blendARGB(color, Color.WHITE, 0.6f)
+        private val hot = ColorUtils.blendARGB(color, Color.WHITE, 0.5f)
         private val a = FloatArray(2)
         private val b = FloatArray(2)
 
@@ -1507,7 +1516,7 @@ class HomeActivity : AppCompatActivity() {
             val speed = if (normal) 0.14f else 0.05f       // picture units per second
             val now = SystemClock.uptimeMillis() / 1000f
             val toScreen = iw * scale                       // picture unit -> screen pixels
-            val tail = 0.16f
+            val tail = 0.2f
             val steps = 28
             val step = tail / steps
             for (pi in paths.indices) {
@@ -1520,16 +1529,16 @@ class HomeActivity : AppCompatActivity() {
                     pointAt(pts, cum, head - dir * (i + 1) * step, b)
                     val fade = 1f - i / steps.toFloat()
                     glow.color = color
-                    glow.alpha = (95 * fade * fade).toInt()
-                    glow.strokeWidth = 11f * d
+                    glow.alpha = (110 * fade * fade).toInt()
+                    glow.strokeWidth = 14f * d
                     canvas.drawLine(offX + a[0] * toScreen, offY + a[1] * toScreen, offX + b[0] * toScreen, offY + b[1] * toScreen, glow)
                     core.color = hot
                     core.alpha = (240 * fade * fade).toInt()
-                    core.strokeWidth = 3.5f * d
+                    core.strokeWidth = 4.5f * d
                     canvas.drawLine(offX + a[0] * toScreen, offY + a[1] * toScreen, offX + b[0] * toScreen, offY + b[1] * toScreen, core)
                 }
                 pointAt(pts, cum, head, a)
-                canvas.drawCircle(offX + a[0] * toScreen, offY + a[1] * toScreen, 5f * d, dot)
+                canvas.drawCircle(offX + a[0] * toScreen, offY + a[1] * toScreen, 6.5f * d, dot)
             }
             postInvalidateDelayed(if (normal) 33L else 66L)
         }
