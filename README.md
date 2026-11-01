@@ -1,44 +1,54 @@
-# Galaxy TV Setup — Phase 1
+# Galaxy Media
 
-Fire TV / Google TV companion app that pairs with its own device, debloats it,
-installs the custom launcher, and keeps your app shelf in sync with a per-device
-settings file hosted as a GitHub Gist.
+A home-screen app for family Fire TV sticks. It shows the clock, a greeting with the weather, a sports
+ticker, your app shelf and a choice of animated backgrounds. A laptop script does the one-time stick
+setup and upkeep. The app itself needs no special access.
 
-## What's in here
+Package: `com.galaxymedia.tvsetup`. Built by GitHub Actions on every push to `main`; each build is
+published as a release with `galaxy-setup-vX.Y.Z.apk`.
 
-| Path | What it is |
-|---|---|
-| `app/` | The Android app (Kotlin) |
-| `app/src/main/assets/device_profiles.json` | Build.MODEL → device name / RAM / tier table |
-| `app/src/main/assets/debloat_fireos.json` | Real package list from your Fire TV Stick 4K (2nd Gen) |
-| `app/src/main/assets/debloat_googletv.json` | Placeholder — fill in after the Onn package dump |
-| `gist-template/device-settings.json` | Copy this into a Gist, one per TV |
-| `.github/workflows/build.yml` | GitHub builds the APK for you on every push |
+## What the app does
+- **Home screen:** clock, greeting, date and weather, live-game line for your teams, sports ticker,
+  app shelf (including "More apps"), update and renewal chips.
+- **Backgrounds:** Rotate (changes by itself every few minutes, and is the default), Starfield,
+  four picture wallpapers with a light that runs along the neon outline, Frame trace, Aurora drift,
+  drawn scenes (Nebula, Sunset, Ocean, Midnight city, Neon grid, Mountains), the Galaxy Media logo,
+  and Plain dark. Lower-end sticks skip the animated ones.
+- **Settings:** name, accent color, sports and teams, hidden apps, background, light color,
+  screen edge, quiet mode, night dimming, motion, screensaver, weather city, open on startup.
+- **Setup and updates:** installs and updates the apps listed in the stick's settings file, and
+  updates itself from this repo's releases.
+- **Help:** short fix-it cards for buffering, no sound and apps that will not open.
 
-## Getting your first APK (no Android Studio needed)
+## Set up a new stick
+1. Fire TV Settings, My Fire TV, About: click the device name 7 times. Then open Developer Options and
+   turn ADB Debugging and Apps from Unknown Sources on.
+2. Install Downloader, then install the app from the latest release (type the link by hand):
+   `https://github.com/galaxystreamingservice-droid/galaxy-tv/releases/download/vX.Y.Z/galaxy-setup-vX.Y.Z.apk`
+3. Open Galaxy Media. Enter a name, a ZIP code and the setup code. The app downloads the stick's
+   settings file, then shows the apps to install.
+4. On a laptop on the same Wi-Fi, run `tools/galaxy-maintain.ps1` (see below).
 
-1. On github.com, create a **new repository** named `galaxy-tv` (private is fine).
-2. Upload everything in this folder to it (drag-and-drop in the browser works).
-3. Go to the repo's **Actions** tab → the "Build APK" workflow runs automatically.
-4. When it finishes (a few minutes), open the run → download the **GalaxyTVSetup-debug** artifact → unzip → `app-debug.apk`.
-5. Host that APK somewhere Downloader on the Firestick can reach (a GitHub Release works), then install it like any other sideloaded app.
+## Laptop script
+`tools/galaxy-maintain.ps1` needs `adb.exe` on the laptop.
 
-## Settings Gist
+    .\galaxy-maintain.ps1 -Ip <stick IP>              report, debloat, trim caches, auto-start permission
+    .\galaxy-maintain.ps1 -Ip <stick IP> -Report      read-only report
+    .\galaxy-maintain.ps1 -Ip <stick IP> -Debloat -DryRun
+    .\galaxy-maintain.ps1 -Ip <stick IP> -Speed Fast  animations at half length (Off, Fast, Default)
 
-1. On github.com → **gist.github.com** → New gist.
-2. Filename: `device-settings.json`. Paste `gist-template/device-settings.json`, edit the values.
-3. Create **secret** gist. Click **Raw** — that URL is what you paste into the app when it asks.
+Nothing is ever uninstalled. Debloat only disables packages, and Fire OS refuses a few of them.
+The script stamps the date on the stick, and the app counts that as a finished maintenance.
 
-## First run on the Firestick
+## Settings file
+Each stick reads one JSON file (a secret GitHub Gist) through a short setup code. It lists the
+apps (`name`, `package`, `version`, `apkUrl`, `autoUpdate`, `pinned`, `managedByStore`) and may
+set `iptvExpires` (`YYYY-MM-DD`), a family `notice`, and sports leagues and teams. A template is in
+`gist-template/`. Do not commit real download links, setup codes or keys to this repo.
 
-1. Settings → My Fire TV → Developer Options → **ADB Debugging ON**.
-2. Open Galaxy TV Setup → **Pair**. A dialog appears on screen: tick **Always allow**, press OK.
-3. Paste the Gist raw URL when prompted.
-4. Press **Run full setup**. Watch the log on the right.
-
-## Phase 2 (next)
-- Projectivy configuration push (shelf layout, backgrounds)
-- Sports tile (ESPN public feed) + boxing list
-- Scheduled daily sync + weekly maintenance (WorkManager)
-- Kill-previous-app hook
-- Phone pairing app — only if loopback pairing turns out to be blocked on your build
+## Repo layout
+- `app/` the Android app (Kotlin, no external services except the free Open-Meteo weather API)
+- `app/src/main/assets/` debloat lists and the outline paths used by the picture wallpapers
+- `tools/` laptop maintenance script
+- `gist-template/` example settings file
+- `.github/workflows/build.yml` build and release

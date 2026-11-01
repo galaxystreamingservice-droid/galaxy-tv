@@ -152,6 +152,7 @@ class HomeActivity : AppCompatActivity() {
             refreshWeather()
             applyNight(false)
             if (prefs.wallpaper == "rotate") applyTheme()      // picks up the next wallpaper when it is time
+            refreshFromNetwork()                               // checks for a new version about every 10 minutes while idle
             handler.postDelayed(this, 15_000)
         }
     }
