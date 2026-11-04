@@ -29,15 +29,11 @@ Check everything worked (read-only, saves a screenshot of the TV):
   .\galaxy-maintain.ps1 -Ip 192.168.1.172 -Verify     PASS / WARN / FAIL list for the whole setup
   .\galaxy-maintain.ps1 -Ip 192.168.1.172 -Screenshot just save a picture of what the TV shows
 
-HOME lock test, all from the laptop (Amazon's home screen is switched back on at the end unless you say otherwise):
-  .\galaxy-maintain.ps1 -Ip 192.168.1.172 -HomeProbe          5-second check: does Fire OS even allow it? (switched back on right away)
-  .\galaxy-maintain.ps1 -Ip 192.168.1.172 -InstallHomeTest    download and install the HOME TEST app over ADB
-  .\galaxy-maintain.ps1 -Ip 192.168.1.172 -HomeTest           lock, press Home from ADB, check what opens, then ask: undo or keep
-
-HOME screen test (only with the separate "Galaxy Media HOME TEST" app installed, never on family sticks):
+Home button: NOT SUPPORTED on Fire OS (tested on a Fire TV Stick 4K, Fire OS 8). Amazon's launcher is a protected
+package and Fire OS ignores a chosen home app, so -HomeProbe, -HomeLock, -HomeTest and -InstallHomeTest only
+explain this and change nothing. Still useful:
   .\galaxy-maintain.ps1 -Ip 192.168.1.172 -HomeCheck   read-only: who answers the Home button right now
-  .\galaxy-maintain.ps1 -Ip 192.168.1.172 -HomeLock    Home button opens Galaxy Media (turns Amazon's home off)
-  .\galaxy-maintain.ps1 -Ip 192.168.1.172 -HomeUndo    put Amazon's home screen back
+  .\galaxy-maintain.ps1 -Ip 192.168.1.172 -HomeUndo    make sure Amazon's home screen is on and is the default
 
 -Yes skips the confirmation question before disabling packages.
 Add -Alexa and/or -Ota to -Debloat if that stick's settings file turns those groups on.
@@ -135,6 +131,14 @@ if ($Summarize) {
     $lines | Set-Content -Path $outFile -Encoding UTF8
     Write-Host "Saved: $outFile"
     Write-Host 'Each cell is the average over the runs, with the lowest and highest run in brackets. If two labels overlap, the difference is within normal noise.'
+    exit 0
+}
+
+# ---- the home-lock options do not work on Fire OS: say so and stop, changing nothing ----
+if ($HomeLock -or $HomeTest -or $HomeProbe -or $InstallHomeTest) {
+    Write-Host "The Home-button lock-in does not work on Fire OS. Amazon's launcher is a protected package that Fire OS will not switch off," -ForegroundColor Yellow
+    Write-Host 'and Fire OS ignores a home app chosen by command. This was tested on a Fire TV Stick 4K (Fire OS 8). Nothing was changed.' -ForegroundColor Yellow
+    Write-Host 'Instead: Galaxy Media opens by itself after a restart, and sits first in Amazon''s app row.'
     exit 0
 }
 
@@ -371,9 +375,9 @@ if ($HomeUndo) {
     Say '=== HOME UNDO ==='
     $r = (Sh "pm enable $AmazonHome") -join ' '
     Say "  Amazon home screen: $r"
-    Sh "pm clear-package-preferred-activities $TestPkg" | Out-Null
+    Sh 'cmd package set-home-activity com.amazon.tv.launcher/.ui.HomeActivity_vNext' | Out-Null
     Show-Home
-    Say '  When you are done testing, uninstall the HOME TEST app (Settings > Applications).'
+    Say '  If the HOME TEST app is still installed, remove it: adb uninstall com.galaxymedia.tvsetup.hometest'
 }
 
 # ---- VERIFY: one read-only health check of everything the app and script set up ----
@@ -710,7 +714,6 @@ if ($HomeTest) {
                 $ans = if ($Yes) { 'y' } else { Read-Host 'Put Amazon''s home screen back now? (y = undo, n = keep the lock for more testing) [y]' }
                 if ($ans -ne 'n') {
                     Sh "pm enable $AmazonHome" | Out-Null
-                    Sh "pm clear-package-preferred-activities $TestPkg" | Out-Null
                     $offNow = Get-List 'pm list packages -d'
                     if ($offNow -contains $AmazonHome) { Say "  Amazon's home screen is STILL OFF. Run -HomeUndo." 'Red' } else { Say "  Amazon's home screen is back on." 'Green' }
                 } else {

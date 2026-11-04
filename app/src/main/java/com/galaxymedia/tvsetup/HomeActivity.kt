@@ -921,25 +921,54 @@ class HomeActivity : AppCompatActivity() {
         return (avail / count.coerceAtLeast(1) - dp(16)).coerceIn(dp(96), dp(136))
     }
 
+    private class ShelfItem(val name: String, val pkg: String, val mine: Boolean)
+
+    /** The shelf: apps from the settings file, then apps this person added from All apps (up to the cap). */
+    private fun shelfItems(): List<ShelfItem> {
+        val hidden = prefs.hiddenApps
+        val items = ArrayList<ShelfItem>()
+        settings?.apps?.filter { it.pinned && it.packageName !in hidden }?.forEach { items += ShelfItem(it.name, it.packageName, false) }
+        val extras = ArrayList<ShelfItem>()
+        for (pkg in prefs.extraShelf) {
+            if (items.any { it.pkg == pkg } || !updater.isInstalled(pkg)) continue
+            val label = try { packageManager.getApplicationLabel(packageManager.getApplicationInfo(pkg, 0)).toString() } catch (e: Exception) { continue }
+            extras += ShelfItem(label, pkg, true)
+        }
+        items += extras.sortedBy { it.name.lowercase() }
+        return items.take(Themes.maxShelfApps)
+    }
+
+    private fun confirmUnpin(a: ShelfItem) {
+        AlertDialog.Builder(this)
+            .setTitle("Remove ${a.name} from your shelf?")
+            .setMessage("The app stays installed. You can add it again from All apps.")
+            .setPositiveButton("Remove") { _, _ ->
+                prefs.extraShelf = prefs.extraShelf - a.pkg
+                shelfSignature = ""
+                rebuildShelf()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
     private fun rebuildShelf() {
         placeShelf()
-        val hidden = prefs.hiddenApps
-        val apps = settings?.apps?.filter { it.pinned && it.packageName !in hidden } ?: emptyList()
-        val sig = prefs.shelf + "#" + apps.joinToString("|") { it.packageName + updater.isInstalled(it.packageName) }
+        val items = shelfItems()
+        val sig = prefs.shelf + "#" + items.joinToString("|") { it.pkg + updater.isInstalled(it.pkg) }
         if (sig == shelfSignature && shelfRow.childCount > 0) return
         shelfSignature = sig
 
         val focusedTag = shelfRow.focusedChild?.tag?.toString()
         shelfRow.removeAllViews()
-        val tileW = shelfTileWidth(apps.size + 1)
-        apps.forEach { a ->
-            val installed = updater.isInstalled(a.packageName)
+        val tileW = shelfTileWidth(items.size + 1)
+        items.forEach { a ->
+            val installed = updater.isInstalled(a.pkg)
             val icon: Drawable? = if (installed) {
-                try { packageManager.getApplicationIcon(a.packageName) } catch (e: Exception) { null }
+                try { packageManager.getApplicationIcon(a.pkg) } catch (e: Exception) { null }
             } else null
-            val tile = makeTile(a.name, icon, a.name.take(1).uppercase(), a.packageName) {
-                val i = packageManager.getLeanbackLaunchIntentForPackage(a.packageName)
-                    ?: packageManager.getLaunchIntentForPackage(a.packageName)
+            val tile = makeTile(a.name, icon, a.name.take(1).uppercase(), a.pkg, onLong = if (a.mine) ({ confirmUnpin(a) }) else null) {
+                val i = packageManager.getLeanbackLaunchIntentForPackage(a.pkg)
+                    ?: packageManager.getLaunchIntentForPackage(a.pkg)
                 if (i == null) Toast.makeText(this, "${a.name} isn't installed yet. Open Setup & updates.", Toast.LENGTH_LONG).show()
                 else startActivity(i)
             }
@@ -961,7 +990,7 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
-    private fun makeTile(label: String, icon: Drawable?, glyph: String, tag: String, onClick: () -> Unit): View {
+    private fun makeTile(label: String, icon: Drawable?, glyph: String, tag: String, onLong: (() -> Unit)? = null, onClick: () -> Unit): View {
         val box = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
@@ -994,6 +1023,7 @@ class HomeActivity : AppCompatActivity() {
         box.addView(lbl, LinearLayout.LayoutParams(MATCH, WRAP))
         labels += lbl to textColor
         box.setOnClickListener { onClick() }
+        if (onLong != null) box.setOnLongClickListener { onLong(); true }
         style(box, 14f, labels)
         return box
     }

@@ -18,6 +18,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import com.galaxymedia.tvsetup.model.DeviceSettings
 
 /**
  * Every app on the stick that can be opened, in one grid. Works as a safety net: even with
@@ -28,13 +29,15 @@ class AllAppsActivity : AppCompatActivity() {
     private class Entry(val label: String, val pkg: String, val system: Boolean, val intent: Intent, val icon: Drawable?)
 
     private var accent = Color.parseColor("#22D3EE")
+    private lateinit var prefs: Prefs
     private val columns = 6
 
     private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        accent = Themes.accentColor(Prefs(this).accent)
+        prefs = Prefs(this)
+        accent = Themes.accentColor(prefs.accent)
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -48,7 +51,7 @@ class AllAppsActivity : AppCompatActivity() {
             setTypeface(null, Typeface.BOLD)
         })
         root.addView(TextView(this).apply {
-            text = "Press OK to open an app. Hold OK on an app to remove it. Back returns to Galaxy Media."
+            text = "Press OK to open an app. Hold OK on an app to add it to your shelf or remove it. Back returns to Galaxy Media."
             textSize = 16f
             setTextColor(Color.parseColor("#9FB3C8"))
             setPadding(0, dp(4), 0, dp(14))
@@ -105,6 +108,48 @@ class AllAppsActivity : AppCompatActivity() {
             }
         }
         return out.sortedBy { it.label.lowercase() }
+    }
+
+    /** Apps already on the shelf from the settings file. */
+    private fun gistShelf(): Set<String> = try {
+        val raw = prefs.lastSettingsJson
+        if (raw.isBlank()) emptySet()
+        else DeviceSettings.parse(raw).apps.filter { it.pinned && it.packageName !in prefs.hiddenApps }.map { it.packageName }.toSet()
+    } catch (ex: Exception) { emptySet() }
+
+    /** Hold OK on an app: open it, add or take it off your shelf, or remove it. */
+    private fun showMenu(e: Entry) {
+        val mine = e.pkg in prefs.extraShelf
+        val onShelf = mine || e.pkg in gistShelf()
+        val labels = ArrayList<String>()
+        labels += "Open"
+        if (!onShelf) labels += "Add to my shelf"
+        if (mine) labels += "Remove from my shelf"
+        labels += if (e.system) "Built-in app (can't be removed)" else "Uninstall"
+        AlertDialog.Builder(this)
+            .setTitle(e.label)
+            .setItems(labels.toTypedArray()) { _, which ->
+                when (labels[which]) {
+                    "Open" -> try { startActivity(e.intent) } catch (ex: Exception) { Toast.makeText(this, "Couldn't open ${e.label}", Toast.LENGTH_SHORT).show() }
+                    "Add to my shelf" -> {
+                        val count = gistShelf().size + prefs.extraShelf.size
+                        if (count >= Themes.maxShelfApps) {
+                            Toast.makeText(this, "Your shelf is full (${Themes.maxShelfApps} apps). Remove one first.", Toast.LENGTH_LONG).show()
+                        } else {
+                            prefs.extraShelf = prefs.extraShelf + e.pkg
+                            Toast.makeText(this, "${e.label} added. Press Back to see it on your shelf.", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                    "Remove from my shelf" -> {
+                        prefs.extraShelf = prefs.extraShelf - e.pkg
+                        Toast.makeText(this, "${e.label} taken off your shelf.", Toast.LENGTH_SHORT).show()
+                    }
+                    "Uninstall" -> confirmRemove(e)
+                    else -> confirmRemove(e)
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     /** Apps Amazon allows to be removed get a normal Fire TV uninstall prompt. Built-in apps cannot be removed here. */
@@ -164,7 +209,7 @@ class AllAppsActivity : AppCompatActivity() {
             label.setTextColor(if (has) Color.BLACK else Color.WHITE)
             v.animate().scaleX(if (has) 1.06f else 1f).scaleY(if (has) 1.06f else 1f).setDuration(120).start()
         }
-        box.setOnLongClickListener { confirmRemove(e); true }
+        box.setOnLongClickListener { showMenu(e); true }
         box.setOnClickListener {
             try { startActivity(e.intent) }
             catch (ex: Exception) { Toast.makeText(this, "Couldn't open ${e.label}", Toast.LENGTH_SHORT).show() }

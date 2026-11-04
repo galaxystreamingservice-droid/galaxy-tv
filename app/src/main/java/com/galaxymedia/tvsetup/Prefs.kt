@@ -70,6 +70,11 @@ class Prefs(ctx: Context) {
         get() = sp.getLong("restartSnoozeUntil", 0L)
         set(v) = sp.edit().putLong("restartSnoozeUntil", v).apply()
 
+    /** Apps this person added to the shelf from All apps (package names). Stored on this stick only. */
+    var extraShelf: Set<String>
+        get() = sp.getStringSet("extraShelf", emptySet())?.toSet() ?: emptySet()
+        set(v) = sp.edit().putStringSet("extraShelf", v.toSet()).apply()
+
     /** The last payment screen details, so it still opens offline. */
     var paymentCache: String
         get() = sp.getString("paymentCache", "") ?: ""

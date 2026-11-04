@@ -106,6 +106,9 @@ object Themes {
         else -> "Starfield"
     }
 
+    /** Most apps the shelf shows (from the settings file plus ones the person added). */
+    const val maxShelfApps = 8
+
     val animationKeys = listOf("auto", "on", "off")
 
     fun animationsName(k: String): String = when (k) {

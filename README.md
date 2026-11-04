@@ -19,10 +19,18 @@ version (own app id, pre-release only) for trying out making Galaxy Media the Ho
   running along the neon outline, Frame trace, Aurora drift, drawn scenes, the Galaxy Media logo and Plain
   dark. Lower-end sticks skip the animated ones. Each moving background is measured on the stick and Rotate
   skips any that draw too slowly.
-- **Gear menu:** All apps (hold OK to remove an app), Stick health (Wi-Fi, speed test, memory, heat, restarts,
+- **Your shelf:** apps listed in the settings file, plus up to 8 total that a person adds themselves: hold OK
+  on an app in All apps and choose Add to my shelf. Hold OK on one of your added tiles to take it off.
+- **Gear menu:** All apps (hold OK for Open, Add to my shelf, Uninstall), Stick health (Wi-Fi, speed test, memory, heat, restarts,
   which backgrounds are smooth), Pay / Renew, Fire TV settings, Settings, Setup & updates, Help.
 - **Setup and updates:** downloads every app first, then opens the install prompts one after another, and
   updates itself from this repository's releases.
+
+## About the Home button
+Fire OS does not let an app become the Home button: Amazon's launcher is a protected package and Fire OS
+ignores a home app chosen by command (tested on a Fire TV Stick 4K, Fire OS 8). Instead, Galaxy Media opens by
+itself after a restart, and works best as the first app in Amazon's app row. A manual HOME test workflow exists
+for trying this on Google TV boxes.
 
 ## Set up a new stick
 1. Fire TV Settings, My Fire TV, About: click the device name 7 times. Then open Developer Options and
