@@ -104,6 +104,7 @@ class PayActivity : AppCompatActivity() {
 
         val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(6), 0, dp(10)) }
         val methods = p.optJSONArray("methods")
+        val qrDp = if ((methods?.length() ?: 0) >= 4) 180 else 210   // four cards: smaller codes so it all fits
         if (methods != null) for (i in 0 until methods.length()) {
             val m = methods.optJSONObject(i) ?: continue
             val card = LinearLayout(this).apply {
@@ -131,7 +132,7 @@ class PayActivity : AppCompatActivity() {
                     setPadding(dp(8), dp(8), dp(8), dp(8))
                     scaleType = ImageView.ScaleType.FIT_CENTER
                     adjustViewBounds = true
-                }, LinearLayout.LayoutParams(dp(210), dp(210)).apply { topMargin = dp(8); bottomMargin = dp(8) })
+                }, LinearLayout.LayoutParams(dp(qrDp), dp(qrDp)).apply { topMargin = dp(8); bottomMargin = dp(8) })
             }
             card.addView(TextView(this).apply {
                 text = m.optString("note"); textSize = 17f; setTextColor(Color.parseColor("#C9D6E8")); gravity = Gravity.CENTER
