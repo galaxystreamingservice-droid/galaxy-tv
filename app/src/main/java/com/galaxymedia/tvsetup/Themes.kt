@@ -103,6 +103,17 @@ object Themes {
         else -> "Starfield"
     }
 
+    val animationKeys = listOf("auto", "on", "off")
+
+    fun animationsName(k: String): String = when (k) {
+        "on" -> "On (full)"
+        "off" -> "Off (still)"
+        else -> "Auto"
+    }
+
+    /** Lower-end handling: "auto" follows the stick's model, "on" and "off" never hide a background. */
+    fun liteFor(ctx: Context, mode: String): Boolean = if (mode == "auto") isLite(ctx) else false
+
     private var liteCache: Boolean? = null
 
     /** True on sticks the model table does not call "full" (lower models). Detected once. */

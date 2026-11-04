@@ -87,13 +87,13 @@ class HomeActivity : AppCompatActivity() {
     private lateinit var contentBox: LinearLayout
     private var appliedPad = ""
     private var bgShownOnce = false
-    private val lite: Boolean by lazy { Themes.isLite(this) }
+    private val lite: Boolean get() = Themes.liteFor(this, prefs.animations)
 
     /** The wallpaper actually shown: lower-end sticks never get the moving-light or heavy ones. */
     private fun wallpaperNow(): String = Themes.resolve(prefs.wallpaper, lite, prefs.rotateMin)
 
     /** Pictures stay still on lower-end sticks. */
-    private fun motionNow(): String = if (lite && Themes.isPicture(wallpaperNow())) "off" else prefs.motion
+    private fun motionNow(): String = if (prefs.animations == "off" || (lite && Themes.isPicture(wallpaperNow()))) "off" else prefs.motion
     private lateinit var tonightView: TextView
     private lateinit var sportsBox: LinearLayout
     private lateinit var sportsText: TextView
@@ -169,6 +169,7 @@ class HomeActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         prefs = Prefs(this)
+        prefs.noteBoot(System.currentTimeMillis(), android.os.SystemClock.elapsedRealtime())
         updater = AppUpdater(this, prefs)
         appliedLook = prefs.textSize + prefs.highContrast
         if (prefs.highContrast) {
@@ -1036,20 +1037,22 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun openStore() {
-        val i = packageManager.getLaunchIntentForPackage("com.amazon.venezia")
-        if (i == null) Toast.makeText(this, "Press Home, then find the Appstore on the Fire TV home screen.", Toast.LENGTH_LONG).show()
+        val pkg = if (DeviceProfile.detect(this).platform == "fireos") "com.amazon.venezia" else "com.android.vending"
+        val i = packageManager.getLaunchIntentForPackage(pkg)
+        if (i == null) Toast.makeText(this, "Press Home, then open the app store from the home screen.", Toast.LENGTH_LONG).show()
         else startActivity(i)
     }
 
     private fun showMenu() {
         AlertDialog.Builder(this)
             .setTitle("Galaxy Media")
-            .setItems(arrayOf("All apps", "Fire TV settings", "Settings", "Setup & updates", "Help: fix it")) { _, which ->
+            .setItems(arrayOf("All apps", "Stick health", "Fire TV settings", "Settings", "Setup & updates", "Help: fix it")) { _, which ->
                 when (which) {
                     0 -> startActivity(Intent(this, AllAppsActivity::class.java))
-                    1 -> openFireSettings()
-                    2 -> startActivity(Intent(this, SettingsActivity::class.java))
-                    3 -> openSetup()
+                    1 -> startActivity(Intent(this, HealthActivity::class.java))
+                    2 -> openFireSettings()
+                    3 -> startActivity(Intent(this, SettingsActivity::class.java))
+                    4 -> openSetup()
                     else -> startActivity(Intent(this, HelpActivity::class.java))
                 }
             }

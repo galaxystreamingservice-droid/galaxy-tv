@@ -11,6 +11,8 @@ import android.provider.Settings
 import android.view.View
 import android.widget.Button
 import android.widget.EditText
+import android.widget.LinearLayout
+import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
@@ -122,6 +124,16 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
+
+    private val ready = ArrayDeque<Pair<AppEntry, java.io.File>>()
+    private var installRun: List<AppEntry> = emptyList()
+    private var progressDialog: AlertDialog? = null
+    private var progressText: TextView? = null
+    private var progressNote: TextView? = null
+    private var progressBar: ProgressBar? = null
+
+    /** Step 1 of 2: download every app first, behind a "please don't press anything" screen. */
     private fun startInstalls() {
         if (!updater.canInstall()) { askInstallPermission(); return }
         io.launch {
@@ -130,34 +142,88 @@ class MainActivity : AppCompatActivity() {
             val todo = updater.statuses(s.apps).filter { it.state == "UPDATE" || it.state == "MISSING" }.map { it.app }
             if (todo.isEmpty()) { logAsync("Everything is up to date."); return@launch }
             queue.clear()
-            queue.addAll(todo)
-            logAsync("${todo.size} to install. Press Install on each prompt.")
-            runOnUiThread { nextInstall() }
+            ready.clear()
+            installRun = todo
+            logAsync("${todo.size} to install.")
+            runOnUiThread { downloadAll(todo) }
         }
     }
 
-    private fun nextInstall() {
-        val app = queue.removeFirstOrNull() ?: return
-        log("get ${app.name} …")
+    private fun downloadAll(todo: List<AppEntry>) {
+        showProgress("Getting your apps ready", todo.size)
         io.launch {
-            val file = updater.download(app)
+            var done = 0
+            for (app in todo) {
+                withContext(Dispatchers.Main) { updateProgress("Downloading ${app.name}  (${done + 1} of ${todo.size})", done) }
+                val file = updater.download(app)
+                if (file != null) ready.addLast(app to file) else logAsync("FAIL ${app.name}: download error")
+                done++
+            }
             withContext(Dispatchers.Main) {
-                if (file == null) {
-                    log("FAIL ${app.name}: download error")
-                    nextInstall()
-                } else {
-                    updater.markPending(app)
-                    awaitingInstall = true
-                    try {
-                        startActivity(updater.installIntent(file))
-                    } catch (e: Exception) {
-                        awaitingInstall = false
-                        log("FAIL ${app.name}: ${e.message}")
-                        nextInstall()
-                    }
-                }
+                updateProgress("All downloaded", todo.size)
+                if (ready.isEmpty()) { hideProgress(); showSummary(); return@withContext }
+                progressNote?.text = "Next, Fire TV will ask you to press Install for each app. Press Install every time it asks."
+                window.decorView.postDelayed({ hideProgress(); nextInstall() }, 3000)
             }
         }
+    }
+
+    /** Step 2 of 2: open the installer prompts one after another. No waiting between them. */
+    private fun nextInstall() {
+        val (app, file) = ready.removeFirstOrNull() ?: run { showSummary(); return }
+        log("install ${app.name} …")
+        updater.markPending(app)
+        awaitingInstall = true
+        try {
+            startActivity(updater.installIntent(file))
+        } catch (e: Exception) {
+            awaitingInstall = false
+            log("FAIL ${app.name}: ${e.message}")
+            nextInstall()
+        }
+    }
+
+    private fun showSummary() {
+        val run = installRun
+        if (run.isEmpty()) return
+        installRun = emptyList()
+        refreshStatus()
+        val missing = run.count { !updater.isInstalled(it.packageName) }
+        val lines = run.joinToString("\n") { a -> (if (updater.isInstalled(a.packageName)) "OK         " else "Not installed  ") + a.name }
+        val b = AlertDialog.Builder(this)
+            .setTitle(if (missing == 0) "All done" else "$missing not installed yet")
+            .setMessage(lines)
+            .setPositiveButton("Done", null)
+        if (missing > 0) b.setNegativeButton("Try again") { _, _ -> startInstalls() }
+        b.show()
+    }
+
+    private fun showProgress(title: String, total: Int) {
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(28), dp(20), dp(28), dp(12))
+        }
+        progressText = TextView(this).apply { textSize = 20f; text = "Starting…" }
+        progressNote = TextView(this).apply {
+            text = "Please don't press anything on the remote while this runs."
+            textSize = 16f
+            setPadding(0, dp(8), 0, dp(14))
+        }
+        progressBar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply { max = total; progress = 0 }
+        box.addView(progressText)
+        box.addView(progressNote)
+        box.addView(progressBar, LinearLayout.LayoutParams(-1, -2))
+        progressDialog = AlertDialog.Builder(this).setTitle(title).setView(box).setCancelable(false).show()
+    }
+
+    private fun updateProgress(text: String, done: Int) {
+        progressText?.text = text
+        progressBar?.progress = done
+    }
+
+    private fun hideProgress() {
+        progressDialog?.dismiss()
+        progressDialog = null
     }
 
     private fun askInstallPermission() {

@@ -171,11 +171,11 @@ class SettingsActivity : AppCompatActivity() {
         val hideIdx = out.size
         out += Row("Hidden apps", if (prefs.hiddenApps.isEmpty()) "None" else "${prefs.hiddenApps.size} hidden", false) { pickHidden(hideIdx) }
         val bgIdx = out.size
-        out += Row("Background", Themes.wallpaperName(Themes.effective(prefs.wallpaper, Themes.isLite(this))), false) { pickBackground(bgIdx) }
+        out += Row("Background", Themes.wallpaperName(Themes.effective(prefs.wallpaper, Themes.liteFor(this, prefs.animations))), false) { pickBackground(bgIdx) }
         out += Row("Screen edge", if (prefs.edge == "wide") "Wider" else "Normal", true) {
             prefs.edge = if (prefs.edge == "wide") "normal" else "wide"
         }
-        val lite = Themes.isLite(this)
+        val lite = Themes.liteFor(this, prefs.animations)
         val wp = Themes.effective(prefs.wallpaper, lite)
         if (wp == "rotate") {
             out += Row("Change every", "${prefs.rotateMin} min", true) {
@@ -192,6 +192,9 @@ class SettingsActivity : AppCompatActivity() {
             out += Row("Background motion", motionName(prefs.motion), true) {
                 prefs.motion = Themes.next(motionModes, prefs.motion)
             }
+        }
+        out += Row("Animations", if (prefs.animations == "auto") "Auto (" + (if (Themes.isLite(this)) "lighter" else "full") + " for this stick)" else Themes.animationsName(prefs.animations), true) {
+            prefs.animations = Themes.next(Themes.animationKeys, prefs.animations)
         }
         out += Row("Quiet mode", if (prefs.quietMode) "On" else "Off", true) {
             prefs.quietMode = !prefs.quietMode
@@ -337,7 +340,7 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun pickBackground(rowIndex: Int) {
-        val keys = Themes.wallpapersFor(Themes.isLite(this))
+        val keys = Themes.wallpapersFor(Themes.liteFor(this, prefs.animations))
         val names = keys.map { Themes.wallpaperName(it) }.toTypedArray()
         val current = keys.indexOf(prefs.wallpaper).coerceAtLeast(0)
         AlertDialog.Builder(this)

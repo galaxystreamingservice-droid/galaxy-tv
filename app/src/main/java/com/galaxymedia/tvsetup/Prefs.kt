@@ -38,6 +38,39 @@ class Prefs(ctx: Context) {
         get() = sp.getInt("rotateMin", 10)
         set(v) = sp.edit().putInt("rotateMin", v).apply()
 
+    /** "auto" (the stick's model decides), "on" (full animation) or "off" (backgrounds stand still). */
+    var animations: String
+        get() = sp.getString("animations", "auto") ?: "auto"
+        set(v) = sp.edit().putString("animations", v).apply()
+
+    /** The last connection test, for the Stick health screen. */
+    var lastSpeed: String
+        get() = sp.getString("lastSpeed", "") ?: ""
+        set(v) = sp.edit().putString("lastSpeed", v).apply()
+    var lastSpeedMbps: Float
+        get() = sp.getFloat("lastSpeedMbps", -1f)
+        set(v) = sp.edit().putFloat("lastSpeedMbps", v).apply()
+    var lastSpeedAt: Long
+        get() = sp.getLong("lastSpeedAt", 0L)
+        set(v) = sp.edit().putLong("lastSpeedAt", v).apply()
+
+    private var bootTimes: String
+        get() = sp.getString("bootTimes", "") ?: ""
+        set(v) = sp.edit().putString("bootTimes", v).apply()
+
+    /** Called when the app starts. If the stick has restarted since last time, remember when. */
+    fun noteBoot(nowMs: Long, upMs: Long) {
+        val bootAt = nowMs - upMs
+        val last = sp.getLong("lastBootAt", 0L)
+        if (last != 0L && kotlin.math.abs(bootAt - last) > 120_000L) {
+            val keep = bootTimes.split(",").mapNotNull { it.toLongOrNull() }.filter { nowMs - it < 14L * 24 * 3600 * 1000 }
+            bootTimes = (keep + bootAt).joinToString(",")
+        }
+        if (last == 0L || kotlin.math.abs(bootAt - last) > 120_000L) sp.edit().putLong("lastBootAt", bootAt).apply()
+    }
+
+    fun restartsSince(sinceMs: Long): Int = bootTimes.split(",").mapNotNull { it.toLongOrNull() }.count { it >= sinceMs }
+
     /** Color of the running light on the picture and frame wallpapers. */
     var beam: String
         get() = sp.getString("beam", "gold") ?: "gold"

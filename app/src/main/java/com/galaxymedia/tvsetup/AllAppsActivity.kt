@@ -1,6 +1,8 @@
 package com.galaxymedia.tvsetup
 
 import android.content.Intent
+import android.content.pm.ApplicationInfo
+import android.net.Uri
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.Drawable
@@ -14,6 +16,7 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 
 /**
@@ -22,7 +25,7 @@ import androidx.appcompat.app.AppCompatActivity
  */
 class AllAppsActivity : AppCompatActivity() {
 
-    private class Entry(val label: String, val intent: Intent, val icon: Drawable?)
+    private class Entry(val label: String, val pkg: String, val system: Boolean, val intent: Intent, val icon: Drawable?)
 
     private var accent = Color.parseColor("#22D3EE")
     private val columns = 6
@@ -45,7 +48,7 @@ class AllAppsActivity : AppCompatActivity() {
             setTypeface(null, Typeface.BOLD)
         })
         root.addView(TextView(this).apply {
-            text = "Press OK to open an app. Back returns to Galaxy Media."
+            text = "Press OK to open an app. Hold OK on an app to remove it. Back returns to Galaxy Media."
             textSize = 16f
             setTextColor(Color.parseColor("#9FB3C8"))
             setPadding(0, dp(4), 0, dp(14))
@@ -96,10 +99,33 @@ class AllAppsActivity : AppCompatActivity() {
                 val i = Intent(Intent.ACTION_MAIN).addCategory(cat)
                     .setClassName(pkg, ri.activityInfo.name)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                out += Entry(ri.loadLabel(pm).toString(), i, try { ri.loadIcon(pm) } catch (e: Exception) { null })
+                val f = ri.activityInfo.applicationInfo.flags
+                val builtIn = (f and ApplicationInfo.FLAG_SYSTEM) != 0 || (f and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0
+                out += Entry(ri.loadLabel(pm).toString(), pkg, builtIn, i, try { ri.loadIcon(pm) } catch (e: Exception) { null })
             }
         }
         return out.sortedBy { it.label.lowercase() }
+    }
+
+    /** Apps Amazon allows to be removed get a normal Fire TV uninstall prompt. Built-in apps cannot be removed here. */
+    private fun confirmRemove(e: Entry) {
+        if (e.system) {
+            AlertDialog.Builder(this)
+                .setTitle(e.label)
+                .setMessage("This is a built-in app, so Fire TV does not let it be removed here.")
+                .setPositiveButton("OK", null)
+                .show()
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Remove ${e.label}?")
+            .setMessage("Fire TV will ask you to confirm. You can install it again later.")
+            .setPositiveButton("Remove") { _, _ ->
+                try { startActivity(Intent(Intent.ACTION_DELETE, Uri.parse("package:${e.pkg}"))) }
+                catch (ex: Exception) { Toast.makeText(this, "Couldn't start the removal.", Toast.LENGTH_LONG).show() }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun bg(focused: Boolean): GradientDrawable = GradientDrawable().apply {
@@ -138,6 +164,7 @@ class AllAppsActivity : AppCompatActivity() {
             label.setTextColor(if (has) Color.BLACK else Color.WHITE)
             v.animate().scaleX(if (has) 1.06f else 1f).scaleY(if (has) 1.06f else 1f).setDuration(120).start()
         }
+        box.setOnLongClickListener { confirmRemove(e); true }
         box.setOnClickListener {
             try { startActivity(e.intent) }
             catch (ex: Exception) { Toast.makeText(this, "Couldn't open ${e.label}", Toast.LENGTH_SHORT).show() }
