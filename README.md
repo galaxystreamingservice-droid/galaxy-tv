@@ -10,7 +10,7 @@ version (own app id, pre-release only) for trying out making Galaxy Media the Ho
 
 ## What the app does
 - **Home screen:** clock, greeting, date and weather, a live-game line for your teams, a sports ticker,
-  the app shelf (with "More apps") and chips for updates, maintenance, restarts and the VPN.
+  the app shelf and chips for updates, maintenance, restarts and the VPN.
 - **VPN chip:** shows the real VPN state and opens the WorldVPN app. A second chip, "VPN renews <date>",
   appears in the last 14 days and opens the Pay / Renew screen.
 - **Pay / Renew:** payment QR codes and a "message me" note. Everything shown comes from the private codes

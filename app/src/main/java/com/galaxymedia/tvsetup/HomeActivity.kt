@@ -915,7 +915,7 @@ class HomeActivity : AppCompatActivity() {
         shelfSignature = ""   // tile widths depend on the padding
     }
 
-    /** Tile width that makes every tile (including "More apps") fit inside the padded screen. */
+    /** Tile width that makes every tile fit inside the padded screen. */
     private fun shelfTileWidth(count: Int): Int {
         val avail = resources.displayMetrics.widthPixels - contentBox.paddingLeft - contentBox.paddingRight - dp(16)
         return (avail / count.coerceAtLeast(1) - dp(16)).coerceIn(dp(96), dp(136))
@@ -960,7 +960,7 @@ class HomeActivity : AppCompatActivity() {
 
         val focusedTag = shelfRow.focusedChild?.tag?.toString()
         shelfRow.removeAllViews()
-        val tileW = shelfTileWidth(items.size + 1)
+        val tileW = shelfTileWidth(items.size)
         items.forEach { a ->
             val installed = updater.isInstalled(a.pkg)
             val icon: Drawable? = if (installed) {
@@ -974,7 +974,6 @@ class HomeActivity : AppCompatActivity() {
             }
             shelfRow.addView(tile, tileParams(tileW))
         }
-        shelfRow.addView(makeTile("More apps", null, "+", "more") { openStore() }, tileParams(tileW))
         hintView.text = if (settings == null) "Press the gear, then Setup & updates, to add your settings link." else ""
         if (focusedTag != null) shelfRow.findViewWithTag<View>(focusedTag)?.requestFocus()
     }
@@ -1134,13 +1133,6 @@ class HomeActivity : AppCompatActivity() {
         } catch (e: Exception) {
             Toast.makeText(this, "Couldn't open the Fire TV settings.", Toast.LENGTH_LONG).show()
         }
-    }
-
-    private fun openStore() {
-        val pkg = if (DeviceProfile.detect(this).platform == "fireos") "com.amazon.venezia" else "com.android.vending"
-        val i = packageManager.getLaunchIntentForPackage(pkg)
-        if (i == null) Toast.makeText(this, "Press Home, then open the app store from the home screen.", Toast.LENGTH_LONG).show()
-        else startActivity(i)
     }
 
     private fun showMenu() {
