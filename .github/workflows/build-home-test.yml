@@ -1,0 +1,46 @@
+name: Build HOME test APK
+# Manual only: Actions > "Build HOME test APK" > Run workflow.
+# Publishes a PRE-RELEASE, which the app's updater (it asks for the "latest" release) never sees,
+# so family sticks are never offered this build.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.7'
+
+      - name: Build HOME test APK
+        run: gradle assembleHometest --no-daemon
+
+      - name: Name the APK
+        id: ver
+        run: |
+          VER=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)
+          echo "ver=$VER" >> "$GITHUB_OUTPUT"
+          cp app/build/outputs/apk/hometest/app-hometest.apk "galaxy-home-test-v$VER.apk"
+          echo "Built galaxy-home-test-v$VER.apk"
+
+      - name: Publish as a pre-release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: home-test-v${{ steps.ver.outputs.ver }}
+          name: HOME TEST v${{ steps.ver.outputs.ver }} (not for family sticks)
+          prerelease: true
+          make_latest: false
+          files: galaxy-home-test-v${{ steps.ver.outputs.ver }}.apk
