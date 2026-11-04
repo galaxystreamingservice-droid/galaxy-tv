@@ -87,10 +87,54 @@ class HomeActivity : AppCompatActivity() {
     private lateinit var contentBox: LinearLayout
     private var appliedPad = ""
     private var bgShownOnce = false
+
+    // ---- frame monitor: measures how smoothly each moving background draws on this stick ----
+    private val frameThread by lazy { android.os.HandlerThread("galaxy-frames").also { it.start() } }
+    private var measureKey: String? = null
+    private var measureFrom = 0L
+    private val measureDurations = ArrayList<Long>()
+    private val frameListener = android.view.Window.OnFrameMetricsAvailableListener { _, fm, _ ->
+        if (measureKey != null && SystemClock.uptimeMillis() >= measureFrom) {
+            val total = fm.getMetric(android.view.FrameMetrics.TOTAL_DURATION)
+            var n = 0
+            synchronized(measureDurations) { measureDurations.add(total); n = measureDurations.size }
+            if (n == 240) runOnUiThread { finishMeasure() }
+        }
+    }
+
+    private fun startMeasure(key: String, motion: String) {
+        stopMeasure()
+        if (motion == "off" || key == "plain" || key == "logo" || key in Themes.sceneKeys) return
+        val prev = prefs.bgSpeed(key)
+        if (prev != null && System.currentTimeMillis() - prev.third < 3L * 24 * 3600 * 1000) return   // measured recently
+        measureKey = key
+        measureFrom = SystemClock.uptimeMillis() + 3000                  // ignore the warm-up
+        synchronized(measureDurations) { measureDurations.clear() }
+        try { window.addOnFrameMetricsAvailableListener(frameListener, android.os.Handler(frameThread.looper)) }
+        catch (e: Exception) { measureKey = null }
+    }
+
+    private fun stopMeasure() {
+        if (measureKey != null) {
+            try { window.removeOnFrameMetricsAvailableListener(frameListener) } catch (e: Exception) { }
+        }
+        measureKey = null
+    }
+
+    private fun finishMeasure() {
+        val key = measureKey ?: return
+        val d = synchronized(measureDurations) { measureDurations.toList() }
+        stopMeasure()
+        if (d.size < 100) return
+        val sorted = d.sorted()
+        val p90ms = (sorted[(sorted.size * 9 / 10).coerceAtMost(sorted.size - 1)] / 1_000_000L).toInt()
+        val rating = if (p90ms <= 20) "smooth" else if (p90ms <= 33) "ok" else "heavy"
+        prefs.setBgSpeed(key, rating, p90ms)
+    }
     private val lite: Boolean get() = Themes.liteFor(this, prefs.animations)
 
     /** The wallpaper actually shown: lower-end sticks never get the moving-light or heavy ones. */
-    private fun wallpaperNow(): String = Themes.resolve(prefs.wallpaper, lite, prefs.rotateMin)
+    private fun wallpaperNow(): String = Themes.resolve(prefs.wallpaper, lite, prefs.rotateMin, prefs.heavyBackgrounds())
 
     /** Pictures stay still on lower-end sticks. */
     private fun motionNow(): String = if (prefs.animations == "off" || (lite && Themes.isPicture(wallpaperNow()))) "off" else prefs.motion
@@ -193,6 +237,7 @@ class HomeActivity : AppCompatActivity() {
         if (appliedLook != prefs.textSize + prefs.highContrast) { recreate(); return }
         loadStoredSettings()
         applyTheme()
+        if (measureKey == null) startMeasure(wallpaperNow(), motionNow())
         rebuildAll()
         applyNight(true)
         leaveQuiet(true)
@@ -207,6 +252,7 @@ class HomeActivity : AppCompatActivity() {
 
     override fun onPause() {
         super.onPause()
+        stopMeasure()
         handler.removeCallbacks(tick)
         handler.removeCallbacks(quietRunnable)
         handler.removeCallbacks(saverRunnable)
@@ -711,6 +757,7 @@ class HomeActivity : AppCompatActivity() {
                 bgHolder.animate().alpha(1f).setDuration(1400).start()
             }
             bgShownOnce = true
+            startMeasure(wp, motionNow())
             centerTitle.visibility = if (wp == "logo" || Themes.isPicture(wp)) View.GONE else View.VISIBLE
             syncInfo()
         }
@@ -826,6 +873,8 @@ class HomeActivity : AppCompatActivity() {
         val renewalUrgent = renewal != null && (renewal.color == red || renewal.color == amber)
         if (renewal != null && renewalUrgent) chips += renewal
         syncMaintenanceStamp()
+        val upHours = SystemClock.elapsedRealtime() / 3_600_000L
+        if (upHours >= 48 && System.currentTimeMillis() > prefs.restartSnoozeUntil) chips += ChipSpec("Restart for best speed", accent) { askRestart(upHours) }
         if (prefs.cleanupDue()) chips += ChipSpec("Maintenance due", accent) { openCleanup() }
         if (renewal != null && !renewalUrgent) chips += renewal
         val vpn = vpnOn()
@@ -1025,6 +1074,18 @@ class HomeActivity : AppCompatActivity() {
 
     private fun openCleanup() {
         startActivity(Intent(this, CleanupActivity::class.java))
+    }
+
+    private fun askRestart(upHours: Long) {
+        AlertDialog.Builder(this)
+            .setTitle("Restart for best speed")
+            .setMessage("This stick has been on for ${upHours / 24} days. A restart clears memory and keeps apps smooth. Go to Fire TV Settings, My Fire TV, Restart, or unplug it for 10 seconds.")
+            .setPositiveButton("Open settings") { _, _ -> openFireSettings() }
+            .setNegativeButton("Not now") { _, _ ->
+                prefs.restartSnoozeUntil = System.currentTimeMillis() + 24L * 3600 * 1000
+                rebuildChips()
+            }
+            .show()
     }
 
     /** The stick's own settings (Wi-Fi, display, restart). Always reachable from the gear menu. */
@@ -1297,7 +1358,7 @@ class HomeActivity : AppCompatActivity() {
             val lap = if (normal) 14f else 36f
             val now = SystemClock.uptimeMillis() / 1000f
             val head = (now / lap) * per
-            val steps = 40
+            val steps = 26
             val step = per * 0.22f / steps
             for (beam in 0 until 2) {
                 val h0 = head + beam * per / 2f
@@ -1317,7 +1378,7 @@ class HomeActivity : AppCompatActivity() {
                 pointAt(h0, l, tp, r, bt, rad, a)
                 canvas.drawCircle(a[0], a[1], 3.5f * dn, dot)
             }
-            postInvalidateDelayed(if (normal) 33L else 66L)
+            postInvalidateDelayed(if (normal) 40L else 66L)
         }
     }
 
@@ -1656,14 +1717,26 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
-    /** Aurora drift: three soft color blobs (cyan, purple, green) slowly wander behind everything. */
+    /**
+     * Aurora drift: three soft color blobs (cyan, purple, green) slowly wander behind everything.
+     * Light on the GPU: the blobs are drawn on a small bitmap (1/6 size) and that is scaled up once per frame.
+     */
     private class AuroraView(ctx: Context, private val motion: String) : View(ctx) {
         private val colors = intArrayOf(0xFF22D3EE.toInt(), 0xFFA78BFA.toInt(), 0xFF4ADE80.toInt())
         private val paints = colors.map { Paint(Paint.ANTI_ALIAS_FLAG) }
+        private val up = Paint(Paint.FILTER_BITMAP_FLAG)
+        private var small: Bitmap? = null
+        private var smallCanvas: Canvas? = null
         private var radius = 0f
 
         override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
-            radius = w * 0.42f
+            val sw = (w / 6).coerceAtLeast(8)
+            val sh = (h / 6).coerceAtLeast(8)
+            small?.recycle()
+            val bm = Bitmap.createBitmap(sw, sh, Bitmap.Config.ARGB_8888)
+            small = bm
+            smallCanvas = Canvas(bm)
+            radius = sw * 0.42f
             for (i in colors.indices) {
                 val rgb = colors[i] and 0x00FFFFFF
                 paints[i].shader = android.graphics.RadialGradient(
@@ -1672,21 +1745,31 @@ class HomeActivity : AppCompatActivity() {
             }
         }
 
+        override fun onDetachedFromWindow() {
+            super.onDetachedFromWindow()
+            small?.recycle()
+            small = null
+        }
+
         override fun onDraw(canvas: Canvas) {
+            val bm = small ?: return
+            val c = smallCanvas ?: return
             if (radius <= 0f) return
             val still = motion == "off"
             val t = if (still) 0f else SystemClock.uptimeMillis() / 1000f
             val speed = if (motion == "normal") 2.4f else 0.8f
+            c.drawColor(0, android.graphics.PorterDuff.Mode.CLEAR)
             for (i in colors.indices) {
                 val ang = t * speed * (0.16f + 0.05f * i) + i * 2.1f
-                val cx = width * (0.5f + 0.32f * cos(ang + i))
-                val cy = height * (0.5f + 0.28f * sin(ang * 1.3f + i * 1.7f))
-                canvas.save()
-                canvas.translate(cx, cy)
-                canvas.drawCircle(0f, 0f, radius, paints[i])
-                canvas.restore()
+                val cx = bm.width * (0.5f + 0.32f * cos(ang + i))
+                val cy = bm.height * (0.5f + 0.28f * sin(ang * 1.3f + i * 1.7f))
+                c.save()
+                c.translate(cx, cy)
+                c.drawCircle(0f, 0f, radius, paints[i])
+                c.restore()
             }
-            if (!still) postInvalidateDelayed(if (motion == "normal") 66L else 120L)
+            canvas.drawBitmap(bm, null, android.graphics.RectF(0f, 0f, width.toFloat(), height.toFloat()), up)
+            if (!still) postInvalidateDelayed(if (motion == "normal") 50L else 100L)
         }
     }
 

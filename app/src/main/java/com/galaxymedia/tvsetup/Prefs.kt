@@ -43,6 +43,33 @@ class Prefs(ctx: Context) {
         get() = sp.getString("animations", "auto") ?: "auto"
         set(v) = sp.edit().putString("animations", v).apply()
 
+    /** How smoothly a moving background draws on this stick: "smooth", "ok" or "heavy" (measured). */
+    fun setBgSpeed(key: String, rating: String, p90ms: Int) {
+        sp.edit().putString("spd_$key", "$rating|$p90ms|${System.currentTimeMillis()}").apply()
+    }
+
+    fun bgSpeed(key: String): Triple<String, Int, Long>? {
+        val v = sp.getString("spd_$key", null) ?: return null
+        val p = v.split("|")
+        if (p.size < 3) return null
+        return Triple(p[0], p[1].toIntOrNull() ?: 0, p[2].toLongOrNull() ?: 0L)
+    }
+
+    /** Backgrounds measured as heavy within the last 7 days. Rotate skips these. */
+    fun heavyBackgrounds(): Set<String> {
+        val now = System.currentTimeMillis()
+        return sp.all.keys.filter { it.startsWith("spd_") }.mapNotNull { k ->
+            val key = k.removePrefix("spd_")
+            val t = bgSpeed(key)
+            if (t != null && t.first == "heavy" && now - t.third < 7L * 24 * 3600 * 1000) key else null
+        }.toSet()
+    }
+
+    /** "Restart for best speed" is hidden until this time after pressing Not now. */
+    var restartSnoozeUntil: Long
+        get() = sp.getLong("restartSnoozeUntil", 0L)
+        set(v) = sp.edit().putLong("restartSnoozeUntil", v).apply()
+
     /** The last connection test, for the Stick health screen. */
     var lastSpeed: String
         get() = sp.getString("lastSpeed", "") ?: ""

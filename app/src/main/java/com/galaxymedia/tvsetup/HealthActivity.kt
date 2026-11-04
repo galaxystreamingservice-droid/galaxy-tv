@@ -211,6 +211,14 @@ class HealthActivity : AppCompatActivity() {
         if (th >= 2) advice += bad to "The stick is hot. Give it air: an HDMI extender helps, and keep it away from the back of the TV."
         if (restarts >= 3) advice += bad to "It restarted $restarts times this week. Use the wall adapter that came with it, not the TV's USB port."
 
+        section("Backgrounds on this stick")
+        val measured = Themes.wallpaperKeys.mapNotNull { k -> prefs.bgSpeed(k)?.let { k to it } }
+        if (measured.isEmpty()) note("Not measured yet. Each moving background is measured the first time it shows.", Color.WHITE)
+        else measured.forEach { (k, v) ->
+            row(Themes.wallpaperName(k), "${v.first}  (typical frame ${v.second} ms)", when (v.first) { "smooth" -> good; "ok" -> warn; else -> bad })
+        }
+        if (measured.any { it.second.first == "heavy" }) note("Rotate skips backgrounds marked heavy for a week. You can still pick one yourself.", warn)
+
         section("About this stick")
         val prof = DeviceProfile.detect(this)
         row("Maker and model", "${Build.MANUFACTURER} ${Build.MODEL}", Color.WHITE)

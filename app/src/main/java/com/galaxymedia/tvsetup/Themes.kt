@@ -74,9 +74,12 @@ object Themes {
     fun rotatePool(lite: Boolean): List<String> = wallpapersFor(lite).filter { it !in rotateSkip }
 
     /** The wallpaper to show now. "rotate" picks from the pool by wall-clock time, so it keeps going across restarts. */
-    fun resolve(key: String, lite: Boolean, minutes: Int): String {
+    /** Backgrounds drawn once and left still, so there is nothing to measure. */
+    val sceneKeys = listOf("nebula", "sunset", "ocean", "city", "grid", "mountains")
+
+    fun resolve(key: String, lite: Boolean, minutes: Int, skip: Set<String> = emptySet()): String {
         if (key != "rotate") return effective(key, lite)
-        val pool = rotatePool(lite)
+        val pool = rotatePool(lite).filter { it !in skip }.ifEmpty { listOf("stars") }
         val slot = (System.currentTimeMillis() / (minutes.coerceAtLeast(1) * 60_000L)).toInt()
         return pool[Math.floorMod(slot, pool.size)]
     }
