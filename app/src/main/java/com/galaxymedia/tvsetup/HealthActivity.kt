@@ -212,7 +212,7 @@ class HealthActivity : AppCompatActivity() {
         if (restarts >= 3) advice += bad to "It restarted $restarts times this week. Use the wall adapter that came with it, not the TV's USB port."
 
         section("Backgrounds on this stick")
-        val measured = Themes.wallpaperKeys.mapNotNull { k -> prefs.bgSpeed(k)?.let { k to it } }
+        val measured = Themes.wallpapersFor(false).mapNotNull { k -> prefs.bgSpeed(k)?.let { k to it } }
         if (measured.isEmpty()) note("Not measured yet. Each moving background is measured the first time it shows.", Color.WHITE)
         else measured.forEach { (k, v) ->
             row(Themes.wallpaperName(k), "${v.first}  (typical frame ${v.second} ms)", when (v.first) { "smooth" -> good; "ok" -> warn; else -> bad })
