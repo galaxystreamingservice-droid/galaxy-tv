@@ -62,13 +62,15 @@ class PayActivity : AppCompatActivity() {
             try { render(JSONObject(prefs.paymentCache)) } catch (e: Exception) { }
         }
         Thread {
-            val p = SetupCodes.payment()
+            val r = SetupCodes.payment()
             runOnUiThread {
+                val p = r.data
                 if (p != null) {
                     prefs.paymentCache = p.toString()
                     render(p)
                 } else if (prefs.paymentCache.isBlank()) {
-                    say("Renew your VPN", "Couldn't load the payment details. Check Wi-Fi and try again, or contact the owner.")
+                    if (r.reachable) say("Renew your VPN", "The payment details aren't set up yet. Please contact the owner.")
+                    else say("Renew your VPN", "Couldn't reach the internet. Check Wi-Fi and try again.")
                 }
             }
         }.start()

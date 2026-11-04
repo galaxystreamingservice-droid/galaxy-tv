@@ -21,15 +21,25 @@ object SetupCodes {
 
     private val hex32 = Regex("^[0-9a-fA-F]{32}$")
 
+    /** data is the "_payment" block, or null. reachable is false only when the internet itself failed. */
+    class PaymentResult(val data: JSONObject?, val reachable: Boolean)
+
     /** The "_payment" block of the secret codes file (QR pictures and the text-me note). Blocking. */
-    fun payment(): JSONObject? = try {
+    fun payment(): PaymentResult = try {
         val conn = (URL(CODES_URL).openConnection() as HttpURLConnection).apply {
             connectTimeout = 8000
             readTimeout = 8000
             setRequestProperty("User-Agent", "galaxy-media")
         }
-        JSONObject(conn.inputStream.bufferedReader().use { it.readText() }).optJSONObject("_payment")
-    } catch (e: Exception) { null }
+        val body = conn.inputStream.bufferedReader().use { it.readText() }
+        PaymentResult(JSONObject(body).optJSONObject("_payment"), true)
+    } catch (e: java.io.FileNotFoundException) {
+        PaymentResult(null, true)          // reached GitHub, but the file is not there
+    } catch (e: java.io.IOException) {
+        PaymentResult(null, false)         // no internet, or a timeout
+    } catch (e: Exception) {
+        PaymentResult(null, true)          // reached it, but could not read it
+    }
 
     /** Blocking. Call from a background thread. */
     fun resolve(input: String): Result {

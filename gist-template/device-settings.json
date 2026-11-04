@@ -8,33 +8,15 @@
     "maintenance": { "enabled": true, "dayOfWeek": "SUNDAY", "hour": 3 }
   },
 
-  "debloat": {
-    "disableAlexa": false,
-    "blockOtaUpdates": false
-  },
-
-  "launcher": {
-    "package": "com.spocky.projengmenu",
-    "apkUrl": "https://github.com/galaxystreamingservice-droid/galaxy-tv/releases/download/assets/projectivy.apk",
-    "shelfPosition": "bottom"
-  },
-
-  "performance": {
-    "killPreviousApp": "auto"
-  },
-
-  "background": {
-    "source": "gallery",
-    "galleryImage": "ring-cyan",
-    "effect": "beam"
-  },
+  "vpnExpires": "2026-12-24",
+  "notice": "",
 
   "apps": [
-    { "name": "TiviMate",      "package": "ar.tvplayer.tv",        "version": 1, "apkUrl": "REPLACE_WITH_YOUR_HOSTED_LINK", "autoUpdate": true,  "pinned": true },
-    { "name": "XC7",           "package": "com.haxapps.xc7",        "version": 1, "apkUrl": "REPLACE_WITH_YOUR_HOSTED_LINK", "autoUpdate": true,  "pinned": true },
-    { "name": "SmartTube",     "package": "org.smarttube.stable",   "version": 1, "apkUrl": "https://github.com/yuliskov/SmartTubeNext/releases/download/latest/smarttube_stable.apk", "autoUpdate": true, "pinned": true },
-    { "name": "GalaxyTheater", "package": "com.community.mbox.tv",  "version": 1, "apkUrl": "REPLACE_WITH_YOUR_HOSTED_LINK", "autoUpdate": true,  "pinned": true },
-    { "name": "WorldVPN",      "package": "io.world.vpn",           "version": 0, "apkUrl": "", "autoUpdate": false, "pinned": true, "managedByStore": true }
+    { "name": "TiviMate", "package": "ar.tvplayer.tv", "version": 1, "apkUrl": "REPLACE_WITH_YOUR_HOSTED_LINK", "autoUpdate": true, "pinned": true },
+    { "name": "XC7", "package": "com.haxapps.xc7", "version": 1, "apkUrl": "REPLACE_WITH_YOUR_HOSTED_LINK", "autoUpdate": true, "pinned": true },
+    { "name": "SmartTube", "package": "org.smarttube.stable", "version": 1, "apkUrl": "https://github.com/yuliskov/SmartTubeNext/releases/download/latest/smarttube_stable.apk", "autoUpdate": true, "pinned": true },
+    { "name": "GalaxyTheater", "package": "fyahrebrands.moviebox.galaxytheater", "version": 1, "apkUrl": "REPLACE_WITH_YOUR_HOSTED_LINK", "autoUpdate": true, "pinned": true },
+    { "name": "WorldVPN", "package": "io.world.vpn", "version": 0, "apkUrl": "", "autoUpdate": false, "pinned": false, "managedByStore": true }
   ],
 
   "sports": {
@@ -43,7 +25,5 @@
     "boxing": [
       { "date": "2026-11-15", "title": "Example Main Event", "platform": "DAZN" }
     ]
-  },
-
-  "notices": []
+  }
 }
