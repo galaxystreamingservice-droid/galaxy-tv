@@ -8,7 +8,6 @@
     "maintenance": { "enabled": true, "dayOfWeek": "SUNDAY", "hour": 3 }
   },
 
-  "vpnExpires": "2026-12-24",
   "notice": "",
 
   "apps": [

@@ -70,6 +70,11 @@ class Prefs(ctx: Context) {
         get() = sp.getLong("restartSnoozeUntil", 0L)
         set(v) = sp.edit().putLong("restartSnoozeUntil", v).apply()
 
+    /** The renewal reminder the person set on this stick, "yyyy-MM-dd", or blank. */
+    var reminderDate: String
+        get() = sp.getString("reminderDate", "") ?: ""
+        set(v) = sp.edit().putString("reminderDate", v).apply()
+
     /** The last payment screen details, so it still opens offline. */
     var paymentCache: String
         get() = sp.getString("paymentCache", "") ?: ""

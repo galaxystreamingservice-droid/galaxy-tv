@@ -95,16 +95,15 @@ class MainActivity : AppCompatActivity() {
         refreshExpiry()
     }
 
-    /** Subtle VPN renewal note from the settings file. Muted normally, amber at 14 days, red at 3. */
+    /** Subtle renewal-reminder note from the settings file. Muted normally, amber at 14 days, red at 3. */
     private fun refreshExpiry() {
-        val raw = prefs.lastSettingsJson
-        val exp = try { if (raw.isBlank()) "" else DeviceSettings.parse(raw).vpnExpires } catch (e: Exception) { "" }
+        val exp = prefs.reminderDate
         val date = if (exp.isBlank()) null else try { SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(exp) } catch (e: Exception) { null }
         if (date == null) { expiryView.visibility = View.GONE; return }
         val endOfDay = date.time + 86_399_000L
         val days = Math.floorDiv(endOfDay - System.currentTimeMillis(), 86_400_000L).toInt()
         val nice = SimpleDateFormat("MMM d", Locale.getDefault()).format(date)
-        expiryView.text = if (days < 0) "VPN · expired $nice" else "VPN · renews $nice"
+        expiryView.text = if (days < 0) "Reminder · expired $nice" else "Reminder · renews $nice"
         expiryView.setTextColor(when {
             days <= 3 -> Color.parseColor("#FF6B6B")
             days <= 14 -> Color.parseColor("#E3B341")

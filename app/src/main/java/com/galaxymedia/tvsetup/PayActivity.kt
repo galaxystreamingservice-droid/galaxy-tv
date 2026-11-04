@@ -38,21 +38,12 @@ class PayActivity : AppCompatActivity() {
         }
         body = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         root.addView(ScrollView(this).apply { addView(body) }, LinearLayout.LayoutParams(-1, 0, 1f))
-        val done = TextView(this).apply {
-            text = "Done"
-            textSize = 20f
-            gravity = Gravity.CENTER
-            setTextColor(Color.WHITE)
-            isFocusable = true
-            isClickable = true
-            background = btnBg(false)
-            setOnFocusChangeListener { v, has ->
-                v.background = btnBg(has)
-                (v as TextView).setTextColor(if (has) Color.BLACK else Color.WHITE)
-            }
-            setOnClickListener { finish() }
-        }
-        root.addView(done, LinearLayout.LayoutParams(dp(220), dp(48)).apply { topMargin = dp(8) })
+        val buttons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        val done = button("Done") { finish() }
+        buttons.addView(done, LinearLayout.LayoutParams(dp(200), dp(48)))
+        buttons.addView(button("Paid? Set the next reminder") { ReminderPicker.show(this, prefs, true) { } },
+            LinearLayout.LayoutParams(-2, dp(48)).apply { marginStart = dp(14) })
+        root.addView(buttons, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(8) })
         setContentView(root)
         done.requestFocus()
 
@@ -63,6 +54,22 @@ class PayActivity : AppCompatActivity() {
                 if (reachable) say("Renew your VPN", "The payment details aren't set up yet. Please contact the owner.")
                 else say("Renew your VPN", "Couldn't reach the internet. Check Wi-Fi and try again.")
             })
+    }
+
+    private fun button(label: String, onClick: () -> Unit) = TextView(this).apply {
+        text = label
+        textSize = 20f
+        gravity = Gravity.CENTER
+        setTextColor(Color.WHITE)
+        setPadding(dp(18), 0, dp(18), 0)
+        isFocusable = true
+        isClickable = true
+        background = btnBg(false)
+        setOnFocusChangeListener { v, has ->
+            v.background = btnBg(has)
+            (v as TextView).setTextColor(if (has) Color.BLACK else Color.WHITE)
+        }
+        setOnClickListener { onClick() }
     }
 
     private fun btnBg(focused: Boolean) = GradientDrawable().apply {

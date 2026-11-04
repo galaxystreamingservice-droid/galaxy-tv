@@ -11,8 +11,11 @@ version (own app id, pre-release only) for trying out making Galaxy Media the Ho
 ## What the app does
 - **Home screen:** clock, greeting, date and weather, a live-game line for your teams, a sports ticker,
   the app shelf and chips for updates, maintenance, restarts and the VPN.
-- **VPN chip:** shows the real VPN state and opens the WorldVPN app (WorldVPN is kept off the shelf). In the last
-  14 days before the person's `vpnExpires` date a "Renew VPN" chip appears and opens the Pay / Renew screen.
+- **VPN chip:** shows the real VPN state and opens the WorldVPN app (WorldVPN is kept off the shelf).
+- **Renewal reminder:** a chip that starts as "Set a reminder". The person picks 1 month, a quarter, 6 months,
+  a year or an exact date, and the chip then shows "Renews <date>". In the last 14 days it turns amber, then
+  red, and opens the Pay / Renew screen, which also has a "Paid? Set the next reminder" button. The date is
+  saved on that stick only.
 - **Contact chip:** always there. It shows a Telegram code for reports and questions.
 - **Pay / Renew:** payment QR codes and a "message me" note. Everything shown comes from the private codes
   file, so no payment details are stored in this repository.
@@ -56,8 +59,8 @@ The script stamps the date on the stick, and the app counts that as a finished m
 
 ## Settings file
 Each stick reads one JSON file (a secret GitHub Gist) through a short setup code. It lists the apps
-(`name`, `package`, `version`, `apkUrl`, `autoUpdate`, `pinned`, `managedByStore`), the person's
-`vpnExpires` date (`YYYY-MM-DD`), an optional family `notice`, and sports leagues and teams. Set `pinned`
+(`name`, `package`, `version`, `apkUrl`, `autoUpdate`, `pinned`, `managedByStore`), an optional family
+`notice`, and sports leagues and teams. Set `pinned`
 to `false` to keep an app off the shelf. A template is in `gist-template/`. The codes and the payment
 details live in a separate private file. Do not commit real download links, setup codes or payment
 details to this repository.

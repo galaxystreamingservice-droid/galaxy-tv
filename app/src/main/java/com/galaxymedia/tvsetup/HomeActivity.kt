@@ -844,16 +844,22 @@ class HomeActivity : AppCompatActivity() {
         } catch (e: Exception) { }
     }
 
+    /**
+     * The renewal reminder chip. No date yet: "Set a reminder". A date, far off: "Renews Dec 24" (press to change it).
+     * Within 14 days, or past: it turns amber or red and opens the Pay / Renew screen.
+     */
     private fun renewalChip(): ChipSpec? {
-        val exp = settings?.vpnExpires ?: return null
-        if (exp.isBlank()) return null
-        val date = try { SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(exp) } catch (e: Exception) { null } ?: return null
-        val endOfDay = date.time + 86_399_000L
-        val days = Math.floorDiv(endOfDay - System.currentTimeMillis(), 86_400_000L).toInt()
-        val nice = SimpleDateFormat("MMM d", Locale.getDefault()).format(date)
-        if (days > 14) return null   // far away: nothing to remind about yet
+        val date = ReminderPicker.parse(prefs.reminderDate)
+            ?: return ChipSpec("Set a reminder", mutedColor) { pickReminder(false) }
+        val days = ReminderPicker.daysLeft(date)
+        val nice = ReminderPicker.nice(date)
+        if (days > 14) return ChipSpec("Renews $nice", mutedColor) { pickReminder(false) }
         val color = if (days <= 3) red else amber
-        return ChipSpec(if (days < 0) "VPN expired · Renew" else "Renew VPN · $nice", color) { openPay() }
+        return ChipSpec(if (days < 0) "Expired $nice · Renew" else "Renew · $nice", color) { openPay() }
+    }
+
+    private fun pickReminder(afterPaying: Boolean) {
+        ReminderPicker.show(this, prefs, afterPaying) { chipSignature = ""; rebuildChips() }
     }
 
     private fun rebuildChips() {
