@@ -8,7 +8,7 @@ import android.content.pm.ApplicationInfo
 object AppCloser {
 
     /** Never closed: the VPN has to stay connected. */
-    private val keep = setOf("io.world.vpn")
+    private val keep = Vpn.packages.toSet()
 
     fun closeOthers(ctx: Context) {
         val am = ctx.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager

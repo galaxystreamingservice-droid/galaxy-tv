@@ -1,6 +1,7 @@
 <#
 Galaxy Media maintenance. Run from a laptop on the same Wi-Fi as the stick.
 Nothing is ever uninstalled. Every step except -Reboot can be undone.
+A bare run (no switches) on a Fire TV does: report, debloat, trim caches, auto-start. On any other box it only reports.
 
   .\galaxy-maintain.ps1 -Ip 192.168.1.172              report + re-apply debloat + trim caches
   .\galaxy-maintain.ps1 -Ip 192.168.1.172 -Report      report only (read-only)
@@ -14,7 +15,7 @@ Measure and test (use 3 runs and compare, one reading proves little):
   .\galaxy-maintain.ps1 -Ip 192.168.1.172 -Benchmark  app launch times and Galaxy Media smoothness, 3 runs each (about 3 minutes)
   .\galaxy-maintain.ps1 -Ip 192.168.1.172 -Undebloat  turn the bloat packages back on, for before/after tests
   .\galaxy-maintain.ps1 -Ip 192.168.1.50 -Port 37123 -Audit   a box that uses Wireless debugging (Onn / Google TV)
-  .\galaxy-maintain.ps1 -Ip 192.168.1.50 -Pair 192.168.1.50:41234   pair first (it asks for the 6-digit code)
+  .\galaxy-maintain.ps1 -Ip 192.168.1.50 -Pair 192.168.1.50:41234   pair first (it asks for the 6-digit code); on its own it changes nothing
   .\galaxy-maintain.ps1 -Ip 192.168.1.50 -Port 37123 -Dump    save the full package list to upload for a new box
 
 Debloat speed test (restart, idle, measure, one command per run):
@@ -80,8 +81,12 @@ $ErrorActionPreference = 'Continue'   # adb writes status text to stderr; don't 
 $ListUrl = 'https://raw.githubusercontent.com/galaxystreamingservice-droid/galaxy-tv/main/app/src/main/assets/debloat_fireos.json'
 
 # No action chosen = the safe default set.
-if (-not ($Report -or $Debloat -or $Trim -or $AutoStart -or [bool]$Speed -or $Reboot -or $HomeCheck -or $HomeLock -or $HomeUndo -or $Verify -or $Screenshot -or $Audit -or $Benchmark -or $Undebloat -or $Dump -or $InstallApps -or $Cycle -or $Summarize -or $HomeProbe -or $HomeTest -or $InstallHomeTest)) {
-    $Report = $true; $Debloat = $true; $Trim = $true; $AutoStart = $true
+$anyAction = ($Report -or $Debloat -or $Trim -or $AutoStart -or [bool]$Speed -or $Reboot -or $HomeCheck -or $HomeLock -or $HomeUndo -or $Verify -or $Screenshot -or $Audit -or $Benchmark -or $Undebloat -or $Dump -or $InstallApps -or $Cycle -or $Summarize -or $HomeProbe -or $HomeTest -or $InstallHomeTest)
+$defaultRun = $false
+if (-not $anyAction -and -not $Pair) {
+    $Report = $true; $Debloat = $true; $Trim = $true; $AutoStart = $true; $defaultRun = $true
+} elseif (-not $anyAction -and $Pair) {
+    $Report = $true      # -Pair on its own: pair, connect, and only look (read-only)
 }
 
 # ---- SUMMARIZE: compare the labeled cycle reports (no stick needed) ----
@@ -199,6 +204,11 @@ try { $cfg = (Invoke-WebRequest -UseBasicParsing -ErrorAction Stop $ListUrl).Con
 catch { Say 'Could not download the debloat list from GitHub (laptop offline?).' 'Yellow' }
 
 $model = (Sh 'getprop ro.product.model' | Select-Object -First 1)
+$maker = (Sh 'getprop ro.product.manufacturer' | Select-Object -First 1)
+if ($defaultRun -and $maker -and ($maker -notmatch 'Amazon')) {
+    Write-Host "This is not a Fire TV ($maker $model). The debloat list is for Fire OS, so only the read-only report runs. Use -Audit or -Dump." -ForegroundColor Yellow
+    $Debloat = $false; $Trim = $false; $AutoStart = $false
+}
 $date = Get-Date -Format 'yyyy-MM-dd'
 $stamp = Get-Date -Format 'yyyy-MM-dd_HHmm'
 $changed = $false

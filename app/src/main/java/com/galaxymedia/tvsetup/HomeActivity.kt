@@ -941,7 +941,7 @@ class HomeActivity : AppCompatActivity() {
     private fun shelfItems(): List<ShelfItem> {
         val hidden = prefs.hiddenApps
         return (settings?.apps ?: emptyList())
-            .filter { it.pinned && it.packageName !in hidden && it.packageName != "io.world.vpn" }
+            .filter { it.pinned && it.packageName !in hidden && it.packageName !in Vpn.packages }
             .map { ShelfItem(it.name, it.packageName) }
     }
 
@@ -1103,7 +1103,7 @@ class HomeActivity : AppCompatActivity() {
 
     /** The VPN chip opens the WorldVPN app, where each person signs in and connects. */
     private fun openVpnApp() {
-        val i = packageManager.getLaunchIntentForPackage("io.world.vpn")
+        val i = Vpn.installed(this)?.let { packageManager.getLaunchIntentForPackage(it) }
         if (i == null) Toast.makeText(this, "The VPN app isn't installed on this stick. Open Setup & updates to install it.", Toast.LENGTH_LONG).show()
         else try { startActivity(i) } catch (e: Exception) { Toast.makeText(this, "Couldn't open the VPN app.", Toast.LENGTH_LONG).show() }
     }
@@ -1125,14 +1125,14 @@ class HomeActivity : AppCompatActivity() {
         try {
             startActivity(Intent(android.provider.Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         } catch (e: Exception) {
-            Toast.makeText(this, "Couldn't open the Fire TV settings.", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "Couldn't open the settings.", Toast.LENGTH_LONG).show()
         }
     }
 
     private fun showMenu() {
         AlertDialog.Builder(this)
             .setTitle("Galaxy Media")
-            .setItems(arrayOf("All apps", "Stick health", "Pay / Renew", "Fire TV settings", "Settings", "Setup & updates", "Help: fix it")) { _, which ->
+            .setItems(arrayOf("All apps", "Stick health", "Pay / Renew", if (DeviceProfile.detect(this).platform == "fireos") "Fire TV settings" else "TV settings", "Settings", "Setup & updates", "Help: fix it")) { _, which ->
                 when (which) {
                     0 -> startActivity(Intent(this, AllAppsActivity::class.java))
                     1 -> startActivity(Intent(this, HealthActivity::class.java))
