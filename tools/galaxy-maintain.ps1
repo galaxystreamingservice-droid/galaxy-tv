@@ -17,6 +17,11 @@ Measure and test (use 3 runs and compare, one reading proves little):
   .\galaxy-maintain.ps1 -Ip 192.168.1.50 -Pair 192.168.1.50:41234   pair first (it asks for the 6-digit code)
   .\galaxy-maintain.ps1 -Ip 192.168.1.50 -Port 37123 -Dump    save the full package list to upload for a new box
 
+Debloat speed test (restart, idle, measure, one command per run):
+  .\galaxy-maintain.ps1 -Ip 192.168.1.172 -Cycle -Label bloat1   restart, wait 10 minutes, then Audit + Benchmark (use bloat1, bloat2, bloat3)
+  .\galaxy-maintain.ps1 -Ip 192.168.1.172 -Cycle -Label clean1   same after the debloat (clean1, clean2, clean3)
+  .\galaxy-maintain.ps1 -Summarize                                compare all labeled reports in the reports folder (no stick needed)
+
 Install the shelf apps with no taps on the TV (for sticks you set up yourself):
   .\galaxy-maintain.ps1 -Ip 192.168.1.172 -InstallApps -Gist <the 32-character settings code>
 
@@ -56,6 +61,10 @@ param(
     [switch]$Undebloat,
     [switch]$Dump,
     [switch]$InstallApps,
+    [switch]$Cycle,
+    [string]$Label,
+    [int]$IdleMinutes = 10,
+    [switch]$Summarize,
     [string]$Gist,
     [int]$Port = 5555,
     [string]$Pair
@@ -67,8 +76,58 @@ $ErrorActionPreference = 'Continue'   # adb writes status text to stderr; don't 
 $ListUrl = 'https://raw.githubusercontent.com/galaxystreamingservice-droid/galaxy-tv/main/app/src/main/assets/debloat_fireos.json'
 
 # No action chosen = the safe default set.
-if (-not ($Report -or $Debloat -or $Trim -or $AutoStart -or [bool]$Speed -or $Reboot -or $HomeCheck -or $HomeLock -or $HomeUndo -or $Verify -or $Screenshot -or $Audit -or $Benchmark -or $Undebloat -or $Dump -or $InstallApps)) {
+if (-not ($Report -or $Debloat -or $Trim -or $AutoStart -or [bool]$Speed -or $Reboot -or $HomeCheck -or $HomeLock -or $HomeUndo -or $Verify -or $Screenshot -or $Audit -or $Benchmark -or $Undebloat -or $Dump -or $InstallApps -or $Cycle -or $Summarize)) {
     $Report = $true; $Debloat = $true; $Trim = $true; $AutoStart = $true
+}
+
+# ---- SUMMARIZE: compare the labeled cycle reports (no stick needed) ----
+if ($Summarize) {
+    $dirS = Join-Path $PSScriptRoot 'reports'
+    $groups = @{}
+    foreach ($f in @(Get-ChildItem -Path $dirS -Filter '*.txt' -ErrorAction SilentlyContinue)) {
+        $m = [regex]::Match($f.Name, '-([A-Za-z]+)\d+\.txt$')
+        if (-not $m.Success) { continue }
+        $lab = $m.Groups[1].Value.ToLower()
+        if (-not $groups.ContainsKey($lab)) { $groups[$lab] = @() }
+        $groups[$lab] += (Get-Content -Raw $f.FullName)
+    }
+    $labs = @($groups.Keys | Sort-Object)
+    if ($labs.Count -eq 0) { Write-Host 'No labeled reports found. Run -Cycle -Label bloat1 (and so on) first.' -ForegroundColor Yellow; exit 0 }
+    function Pull([string]$text, [string]$pattern) {
+        $m = [regex]::Match($text, $pattern)
+        if ($m.Success) { return [double]($m.Groups[1].Value -replace ',', '') } else { return $null }
+    }
+    $metrics = [ordered]@{
+        'Free memory before, MB'   = 'available (\d+) MB'
+        'Load average (1 min)'     = 'load average: ([\d.]+)'
+        'TiviMate start, ms'       = 'TiviMate: starts in ms\s+avg ([\d,.]+)'
+        'XC7 start, ms'            = 'XC7: starts in ms\s+avg ([\d,.]+)'
+        'SmartTube start, ms'      = 'SmartTube: starts in ms\s+avg ([\d,.]+)'
+        'GalaxyTheater start, ms'  = 'GalaxyTheater: starts in ms\s+avg ([\d,.]+)'
+        'WorldVPN start, ms'       = 'WorldVPN: starts in ms\s+avg ([\d,.]+)'
+        'Galaxy Media jank, %'     = 'janky frames, % over 20 s:\s+avg ([\d.]+)'
+        'Free memory after, MB'    = 'Free memory at the end: (\d+) MB'
+    }
+    $lines = @()
+    $lines += ('Metric'.PadRight(26) + (($labs | ForEach-Object { (($_ + ' (' + @($groups[$_]).Count + ' runs)').PadRight(30)) }) -join ''))
+    foreach ($k in $metrics.Keys) {
+        $row = $k.PadRight(26)
+        foreach ($l in $labs) {
+            $vals = @(@($groups[$l]) | ForEach-Object { Pull $_ $metrics[$k] } | Where-Object { $null -ne $_ })
+            if ($vals.Count -eq 0) { $row += 'n/a'.PadRight(30) }
+            else {
+                $mm = $vals | Measure-Object -Average -Minimum -Maximum
+                $row += (("{0:N1}  ({1:N1} to {2:N1})" -f $mm.Average, $mm.Minimum, $mm.Maximum).PadRight(30))
+            }
+        }
+        $lines += $row
+    }
+    $lines | ForEach-Object { Write-Host $_ }
+    $outFile = Join-Path $dirS ('summary-' + (Get-Date -Format 'yyyy-MM-dd_HHmm') + '.txt')
+    $lines | Set-Content -Path $outFile -Encoding UTF8
+    Write-Host "Saved: $outFile"
+    Write-Host 'Each cell is the average over the runs, with the lowest and highest run in brackets. If two labels overlap, the difference is within normal noise.'
+    exit 0
 }
 
 # ---- find adb ----
@@ -131,6 +190,26 @@ $model = (Sh 'getprop ro.product.model' | Select-Object -First 1)
 $date = Get-Date -Format 'yyyy-MM-dd'
 $stamp = Get-Date -Format 'yyyy-MM-dd_HHmm'
 $changed = $false
+
+# ---- CYCLE: restart, stay idle, then measure (for before/after tests) ----
+if ($Cycle) {
+    if (-not $Label) { Say '  Give the run a label, for example -Label bloat1' 'Yellow'; exit 1 }
+    Say "=== CYCLE $Label : restart, $IdleMinutes minutes idle, then Audit + Benchmark ==="
+    Say '  Do not touch the remote and do not open any apps until it finishes.' 'Yellow'
+    & $adb -s $target reboot | Out-Null
+    Start-Sleep -Seconds 60
+    $back = $false
+    for ($i = 0; $i -lt 30; $i++) {
+        & $adb connect $target 2>&1 | Out-Null
+        $st = (& $adb -s $target get-state 2>&1 | Out-String).Trim()
+        if ($st -eq 'device') { $back = $true; break }
+        Start-Sleep -Seconds 10
+    }
+    if (-not $back) { Say '  The stick did not come back on ADB within 6 minutes. Check it and run again.' 'Red'; exit 1 }
+    for ($m = $IdleMinutes; $m -gt 0; $m--) { Write-Host "  idle: $m minute(s) left ..."; Start-Sleep -Seconds 60 }
+    $Audit = $true
+    $Benchmark = $true
+}
 
 # ---- 1. report ----
 if ($Report) {
@@ -554,7 +633,8 @@ if ($changed -and -not $DryRun) { Sh "settings put global galaxy_last_maintained
 
 $dir = Join-Path $PSScriptRoot 'reports'
 New-Item -ItemType Directory -Force -Path $dir | Out-Null
-$file = Join-Path $dir ("{0}-{1}-{2}.txt" -f ($model -replace '\W', ''), ($Ip -replace '\.', '-'), $stamp)
+$labelPart = if ($Label) { "-$Label" } else { '' }
+$file = Join-Path $dir (("{0}-{1}-{2}" -f ($model -replace '\W', ''), ($Ip -replace '\.', '-'), $stamp) + $labelPart + '.txt')
 $out | Set-Content -Path $file -Encoding UTF8
 Write-Host "Saved: $file"
 
