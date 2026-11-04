@@ -878,7 +878,7 @@ class HomeActivity : AppCompatActivity() {
         if (prefs.cleanupDue()) chips += ChipSpec("Maintenance due", accent) { openCleanup() }
         if (renewal != null && !renewalUrgent) chips += renewal
         val vpn = vpnOn()
-        chips += ChipSpec(if (vpn) "VPN on" else "VPN off", if (vpn) green else mutedColor, null)
+        chips += ChipSpec(if (vpn) "VPN on" else "VPN off", if (vpn) green else mutedColor) { openVpnApp() }
 
         val shownChips = chips.take(4) // max four; the lowest-priority ones drop off
         val sig = shownChips.joinToString("|") { it.text + it.color }
@@ -1077,6 +1077,13 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun openPay() { startActivity(Intent(this, PayActivity::class.java)) }
+
+    /** The VPN chip opens the WorldVPN app, where each person signs in and connects. */
+    private fun openVpnApp() {
+        val i = packageManager.getLaunchIntentForPackage("io.world.vpn")
+        if (i == null) Toast.makeText(this, "The VPN app isn't installed on this stick. Open Setup & updates to install it.", Toast.LENGTH_LONG).show()
+        else try { startActivity(i) } catch (e: Exception) { Toast.makeText(this, "Couldn't open the VPN app.", Toast.LENGTH_LONG).show() }
+    }
 
     private fun askRestart(upHours: Long) {
         AlertDialog.Builder(this)
