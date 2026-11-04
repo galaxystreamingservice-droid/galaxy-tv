@@ -67,6 +67,7 @@ class MainActivity : AppCompatActivity() {
             openSystem(Settings.ACTION_SETTINGS)
         }
 
+        styleButtons()
         refreshStatus()
         if (prefs.settingsUrl.isBlank()) log("Press 'Set settings file URL' and enter your setup code.")
 
@@ -168,6 +169,32 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** Step 2 of 2: open the installer prompts one after another. No waiting between them. */
+    /** Big, obvious focus: the selected button turns solid accent color with a thick white border and grows a little. */
+    private fun styleButtons() {
+        val accent = Themes.accentColor(prefs.accent)
+        val d = resources.displayMetrics.density
+        fun bg(focused: Boolean) = android.graphics.drawable.GradientDrawable().apply {
+            cornerRadius = 12 * d
+            if (focused) { setColor(accent); setStroke((4 * d).toInt(), Color.WHITE) }
+            else { setColor(Color.parseColor("#14203D")); setStroke((1 * d).toInt(), Color.parseColor("#2A3A63")) }
+        }
+        for (id in listOf(R.id.btnCheck, R.id.btnInstall, R.id.btnSelf, R.id.btnDiag, R.id.btnUrl, R.id.btnWifi, R.id.btnSystem)) {
+            val b = findViewById<Button>(id)
+            b.isAllCaps = false
+            b.textSize = 18f
+            b.setPadding((16 * d).toInt(), (12 * d).toInt(), (16 * d).toInt(), (12 * d).toInt())
+            b.background = bg(false)
+            b.setTextColor(Color.WHITE)
+            b.setOnFocusChangeListener { v, has ->
+                v.background = bg(has)
+                (v as Button).setTextColor(if (has) Color.BLACK else Color.WHITE)
+                v.animate().scaleX(if (has) 1.03f else 1f).scaleY(if (has) 1.03f else 1f).setDuration(120).start()
+            }
+        }
+        findViewById<Button>(R.id.btnInstall).text = "Install / update apps"
+        findViewById<Button>(R.id.btnCheck).requestFocus()
+    }
+
     private fun nextInstall() {
         val (app, file) = ready.removeFirstOrNull() ?: run { showSummary(); return }
         log("install ${app.name} …")
@@ -228,7 +255,7 @@ class MainActivity : AppCompatActivity() {
     private fun askInstallPermission() {
         AlertDialog.Builder(this)
             .setTitle("Allow installs")
-            .setMessage("Turn ON 'Install unknown apps' for Galaxy Media on the next screen, then come back and press Install updates.")
+            .setMessage("Turn ON 'Install unknown apps' for Galaxy Media on the next screen, then come back and press Install / update apps.")
             .setPositiveButton("Open") { _, _ ->
                 try {
                     startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName")))

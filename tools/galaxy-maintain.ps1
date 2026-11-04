@@ -30,6 +30,13 @@ Check everything worked (read-only, saves a screenshot of the TV):
   .\galaxy-maintain.ps1 -Ip 192.168.1.172 -Verify     PASS / WARN / FAIL list for the whole setup
   .\galaxy-maintain.ps1 -Ip 192.168.1.172 -Screenshot just save a picture of what the TV shows
 
+Remove every app you installed except the ones you keep (it lists them and asks first; their sign-ins and data are lost):
+  .\galaxy-maintain.ps1 -Ip 192.168.1.165 -RemoveApps -DryRun              list only: do this first
+  .\galaxy-maintain.ps1 -Ip 192.168.1.165 -RemoveApps                      then remove (type y)
+  .\galaxy-maintain.ps1 -Ip 192.168.1.165 -RemoveApps -Keep com.a.b,com.c.d   also keep these
+  Always kept: Galaxy Media, TiviMate, XC7, GalaxyTheater, AppLinked, WorldVPN (both names), SmartTube, Termux, F-Droid, Downloader.
+  Google and Android system apps are never touched.
+
 Home button: NOT SUPPORTED on Fire OS (tested on a Fire TV Stick 4K, Fire OS 8). Amazon's launcher is a protected
 package and Fire OS ignores a chosen home app, so -HomeProbe, -HomeLock, -HomeTest and -InstallHomeTest only
 explain this and change nothing. Still useful:
@@ -67,6 +74,8 @@ param(
     [string]$Label,
     [int]$IdleMinutes = 10,
     [switch]$Summarize,
+    [switch]$RemoveApps,
+    [string[]]$Keep,
     [switch]$HomeProbe,
     [switch]$HomeTest,
     [switch]$InstallHomeTest,
@@ -81,7 +90,7 @@ $ErrorActionPreference = 'Continue'   # adb writes status text to stderr; don't 
 $ListUrl = 'https://raw.githubusercontent.com/galaxystreamingservice-droid/galaxy-tv/main/app/src/main/assets/debloat_fireos.json'
 
 # No action chosen = the safe default set.
-$anyAction = ($Report -or $Debloat -or $Trim -or $AutoStart -or [bool]$Speed -or $Reboot -or $HomeCheck -or $HomeLock -or $HomeUndo -or $Verify -or $Screenshot -or $Audit -or $Benchmark -or $Undebloat -or $Dump -or $InstallApps -or $Cycle -or $Summarize -or $HomeProbe -or $HomeTest -or $InstallHomeTest)
+$anyAction = ($Report -or $Debloat -or $Trim -or $AutoStart -or [bool]$Speed -or $Reboot -or $HomeCheck -or $HomeLock -or $HomeUndo -or $Verify -or $Screenshot -or $Audit -or $Benchmark -or $Undebloat -or $Dump -or $InstallApps -or $Cycle -or $Summarize -or $RemoveApps -or $HomeProbe -or $HomeTest -or $InstallHomeTest)
 $defaultRun = $false
 if (-not $anyAction -and -not $Pair) {
     $Report = $true; $Debloat = $true; $Trim = $true; $AutoStart = $true; $defaultRun = $true
@@ -731,6 +740,44 @@ if ($HomeTest) {
                 }
             }
         } else { Say '  Skipped by you. Nothing was changed.' }
+    }
+}
+
+# ---- REMOVE APPS: uninstall every app you installed except the ones you keep ----
+if ($RemoveApps) {
+    Say '=== REMOVE EXTRA APPS ==='
+    $always = @('com.galaxymedia.tvsetup', 'ar.tvplayer.tv', 'com.haxapps.xc7', 'fyahrebrands.moviebox.galaxytheater',
+                'fyahrebrands.applinked.galaxystore', 'io.world.vpn', 'ai.world.tv', 'org.smarttube.stable',
+                'com.termux', 'org.fdroid.fdroid', 'com.esaba.downloader')
+    $keepAll = @($always + @($Keep | Where-Object { $_ }))
+    $names = @{
+        'com.apple.atve.androidtv.appletv' = 'Apple TV'; 'com.crunchyroll.crunchyroid' = 'Crunchyroll'
+        'com.amazon.amazonvideo.livingroom' = 'Prime Video'; 'com.amazon.music.tv' = 'Amazon Music'
+        'com.instantbits.cast.receiver' = 'Web Video Caster'; 'net.torguard.openvpn.client' = 'TorGuard VPN'
+    }
+    $third = Get-List 'pm list packages -3'
+    $extras = @($third | Where-Object { $keepAll -notcontains $_ -and $_ -notlike 'com.google.android.*' -and $_ -notlike 'com.android.*' } | Sort-Object)
+    if ($extras.Count -eq 0) {
+        Say '  Nothing to remove: every app you installed is on the keep list.' 'Green'
+    } else {
+        Say "  These $($extras.Count) apps would be uninstalled (their sign-ins and data are lost):" 'Yellow'
+        foreach ($p in $extras) {
+            $label = if ($names.ContainsKey($p)) { '   (' + $names[$p] + ')' } else { '' }
+            Say ('    ' + $p + $label)
+        }
+        if ($DryRun) {
+            Say '  Dry run: nothing was removed.'
+        } else {
+            $go = if ($Yes) { 'y' } else { Read-Host "Uninstall these $($extras.Count) apps? (y/n)" }
+            if ($go -eq 'y') {
+                $before = Get-FreeMB
+                foreach ($p in $extras) { Say ('  ' + $p + ': ' + ((Sh "pm uninstall --user 0 $p") -join ' ')) }
+                Start-Sleep -Seconds 2
+                $after = Get-FreeMB
+                if ($null -ne $before -and $null -ne $after) { Say "  Free storage: $before MB -> $after MB (freed $($after - $before) MB)" 'Green' }
+                Say '  To get an app back, install it again from the store.'
+            } else { Say '  Skipped by you. Nothing was removed.' }
+        }
     }
 }
 
