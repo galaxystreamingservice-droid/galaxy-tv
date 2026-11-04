@@ -1,6 +1,5 @@
 package com.galaxymedia.tvsetup
 
-import android.app.DatePickerDialog
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -36,7 +35,7 @@ object ReminderPicker {
                     1 -> setIn(activity, prefs, 3, afterPaying, existing, onDone)
                     2 -> setIn(activity, prefs, 6, afterPaying, existing, onDone)
                     3 -> setIn(activity, prefs, 12, afterPaying, existing, onDone)
-                    4 -> pickDate(activity, prefs, existing, onDone)
+                    4 -> pickDate(activity, prefs, onDone)
                     else -> {
                         prefs.reminderDate = ""
                         Toast.makeText(activity, "Reminder cleared.", Toast.LENGTH_SHORT).show()
@@ -56,21 +55,42 @@ object ReminderPicker {
         save(activity, prefs, cal.time, onDone)
     }
 
-    private fun pickDate(activity: AppCompatActivity, prefs: Prefs, existing: Date?, onDone: () -> Unit) {
-        val start = Calendar.getInstance()
-        if (existing != null && daysLeft(existing) >= 0) start.time = existing
-        try {
-            // The older spinner style is used because it works with a TV remote.
-            val dlg = DatePickerDialog(activity, android.R.style.Theme_Holo_Dialog, { _, y, m, d ->
-                val c = Calendar.getInstance()
-                c.set(y, m, d, 0, 0, 0)
-                save(activity, prefs, c.time, onDone)
-            }, start.get(Calendar.YEAR), start.get(Calendar.MONTH), start.get(Calendar.DAY_OF_MONTH))
-            dlg.datePicker.minDate = System.currentTimeMillis() - 1000
-            dlg.show()
-        } catch (e: Exception) {
-            Toast.makeText(activity, "Couldn't open the date picker. Use one of the choices instead.", Toast.LENGTH_LONG).show()
+    /**
+     * Two plain lists, month then day. A spinner-style date picker is hard to finish with a TV remote
+     * (the OK button cannot be reached), but a list can always be moved through and pressed.
+     */
+    private fun pickDate(activity: AppCompatActivity, prefs: Prefs, onDone: () -> Unit) {
+        val today = Calendar.getInstance()
+        val nameFmt = SimpleDateFormat("MMMM yyyy", Locale.getDefault())
+        val firsts = ArrayList<Calendar>()
+        val monthLabels = ArrayList<String>()
+        val c = Calendar.getInstance()
+        c.set(Calendar.DAY_OF_MONTH, 1)
+        for (i in 0 until 24) {
+            firsts += (c.clone() as Calendar)
+            monthLabels += nameFmt.format(c.time)
+            c.add(Calendar.MONTH, 1)
         }
+        AlertDialog.Builder(activity)
+            .setTitle("Pick the month")
+            .setItems(monthLabels.toTypedArray()) { _, mi ->
+                val first = firsts[mi]
+                val startDay = if (mi == 0) today.get(Calendar.DAY_OF_MONTH) else 1
+                val lastDay = first.getActualMaximum(Calendar.DAY_OF_MONTH)
+                val days = (startDay..lastDay).map { it.toString() }
+                AlertDialog.Builder(activity)
+                    .setTitle("Pick the day · " + monthLabels[mi])
+                    .setItems(days.toTypedArray()) { _, di ->
+                        val d = first.clone() as Calendar
+                        d.set(Calendar.DAY_OF_MONTH, startDay + di)
+                        d.set(Calendar.HOUR_OF_DAY, 0); d.set(Calendar.MINUTE, 0); d.set(Calendar.SECOND, 0)
+                        save(activity, prefs, d.time, onDone)
+                    }
+                    .setNegativeButton("Back") { _, _ -> pickDate(activity, prefs, onDone) }
+                    .show()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun save(activity: AppCompatActivity, prefs: Prefs, date: Date, onDone: () -> Unit) {

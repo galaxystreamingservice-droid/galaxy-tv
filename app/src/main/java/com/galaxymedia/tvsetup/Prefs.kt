@@ -70,6 +70,11 @@ class Prefs(ctx: Context) {
         get() = sp.getLong("restartSnoozeUntil", 0L)
         set(v) = sp.edit().putLong("restartSnoozeUntil", v).apply()
 
+    /** Close other apps when coming back to Galaxy Media: "auto", "on" or "off". */
+    var closeApps: String
+        get() = sp.getString("closeApps", "auto") ?: "auto"
+        set(v) = sp.edit().putString("closeApps", v).apply()
+
     /** The renewal reminder the person set on this stick, "yyyy-MM-dd", or blank. */
     var reminderDate: String
         get() = sp.getString("reminderDate", "") ?: ""

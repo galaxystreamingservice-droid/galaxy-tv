@@ -280,14 +280,22 @@ class HealthActivity : AppCompatActivity() {
         }.start()
     }
 
+    private fun availMb(): Long {
+        val mi = ActivityManager.MemoryInfo()
+        (getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager).getMemoryInfo(mi)
+        return mi.availMem / (1024 * 1024)
+    }
+
+    /** Asks other apps to close, then reports how much memory really came back. */
     private fun freeMemory() {
-        val am = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
-        var n = 0
-        for (ai in packageManager.getInstalledApplications(0)) {
-            if (ai.packageName == packageName || (ai.flags and ApplicationInfo.FLAG_SYSTEM) != 0) continue
-            try { am.killBackgroundProcesses(ai.packageName); n++ } catch (e: Exception) { }
-        }
-        Toast.makeText(this, "Asked $n apps to close in the background", Toast.LENGTH_SHORT).show()
-        handler.postDelayed({ render() }, 1500)
+        val before = availMb()
+        AppCloser.closeOthers(this)
+        handler.postDelayed({
+            val after = availMb()
+            val gained = after - before
+            val msg = if (gained >= 10) "Freed about $gained MB ($before to $after MB free)" else "Nothing much to free right now ($after MB free)"
+            Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+            render()
+        }, 2000)
     }
 }

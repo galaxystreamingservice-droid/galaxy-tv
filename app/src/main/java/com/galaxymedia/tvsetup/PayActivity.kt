@@ -113,11 +113,15 @@ class PayActivity : AppCompatActivity() {
         })
 
         val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(2), 0, dp(4)) }
-        val methods = p.optJSONArray("methods")
-        val n = methods?.length() ?: 0
+        val shown = ArrayList<JSONObject>()
+        val all = p.optJSONArray("methods")
+        if (all != null) for (i in 0 until all.length()) {
+            val m = all.optJSONObject(i) ?: continue
+            if (!m.optString("label").contains("telegram", ignoreCase = true)) shown += m   // Telegram lives on the Contact screen
+        }
+        val n = shown.size
         val qrDp = if (n >= 4) 150 else if (n == 3) 180 else 210
-        if (methods != null) for (i in 0 until n) {
-            val m = methods.optJSONObject(i) ?: continue
+        for (m in shown) {
             val card = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER_HORIZONTAL

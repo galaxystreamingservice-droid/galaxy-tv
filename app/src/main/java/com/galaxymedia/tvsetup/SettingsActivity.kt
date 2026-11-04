@@ -196,6 +196,9 @@ class SettingsActivity : AppCompatActivity() {
         out += Row("Animations", if (prefs.animations == "auto") "Auto (" + (if (Themes.isLite(this)) "lighter" else "full") + " for this stick)" else Themes.animationsName(prefs.animations), true) {
             prefs.animations = Themes.next(Themes.animationKeys, prefs.animations)
         }
+        out += Row("Close apps when I come back", if (prefs.closeApps == "auto") "Auto (" + (if (AppCloser.enabled(this, "auto")) "on" else "off") + " for this stick)" else if (prefs.closeApps == "on") "On" else "Off", true) {
+            prefs.closeApps = Themes.next(listOf("auto", "on", "off"), prefs.closeApps)
+        }
         out += Row("Quiet mode", if (prefs.quietMode) "On" else "Off", true) {
             prefs.quietMode = !prefs.quietMode
         }

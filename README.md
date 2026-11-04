@@ -16,6 +16,10 @@ version (own app id, pre-release only) for trying out making Galaxy Media the Ho
   a year or an exact date, and the chip then shows "Renews <date>". In the last 14 days it turns amber, then
   red, and opens the Pay / Renew screen, which also has a "Paid? Set the next reminder" button. The date is
   saved on that stick only.
+- **Closing apps:** the setting "Close apps when I come back" (Auto, On, Off) asks Android to close other apps'
+  background processes when the person returns to Galaxy Media. Auto turns it on for sticks with under about 2.5 GB
+  of memory. The VPN app is never closed. Stick health > Free up memory does the same on demand and reports
+  how much memory really came back.
 - **Contact chip:** always there. It shows a Telegram code for reports and questions.
 - **Pay / Renew:** payment QR codes and a "message me" note. Everything shown comes from the private codes
   file, so no payment details are stored in this repository.

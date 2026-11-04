@@ -87,6 +87,7 @@ class HomeActivity : AppCompatActivity() {
     private lateinit var contentBox: LinearLayout
     private var appliedPad = ""
     private var bgShownOnce = false
+    private var pausedAt = 0L
 
     // ---- frame monitor: measures how smoothly each moving background draws on this stick ----
     private val frameThread by lazy { android.os.HandlerThread("galaxy-frames").also { it.start() } }
@@ -248,10 +249,15 @@ class HomeActivity : AppCompatActivity() {
         refreshFromNetwork()
         refreshSports()
         refreshWeather()
+        // Coming back after using another app: close the other apps' background processes.
+        if (pausedAt > 0L && SystemClock.elapsedRealtime() - pausedAt > 1500L && AppCloser.enabled(this, prefs.closeApps)) {
+            handler.postDelayed({ AppCloser.closeOthers(this) }, 1500)
+        }
     }
 
     override fun onPause() {
         super.onPause()
+        pausedAt = SystemClock.elapsedRealtime()
         stopMeasure()
         handler.removeCallbacks(tick)
         handler.removeCallbacks(quietRunnable)
