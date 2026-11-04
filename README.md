@@ -11,17 +11,16 @@ version (own app id, pre-release only) for trying out making Galaxy Media the Ho
 ## What the app does
 - **Home screen:** clock, greeting, date and weather, a live-game line for your teams, a sports ticker,
   the app shelf and chips for updates, maintenance, restarts and the VPN.
-- **VPN chip:** shows the real VPN state and opens the WorldVPN app. A second chip, "VPN renews <date>",
-  appears in the last 14 days and opens the Pay / Renew screen.
+- **VPN chip:** shows the real VPN state and opens the WorldVPN app (WorldVPN is kept off the shelf). In the last
+  14 days before the person's `vpnExpires` date a "Renew VPN" chip appears and opens the Pay / Renew screen.
+- **Contact chip:** always there. It shows a Telegram code for reports and questions.
 - **Pay / Renew:** payment QR codes and a "message me" note. Everything shown comes from the private codes
   file, so no payment details are stored in this repository.
 - **Backgrounds:** Rotate (the default, changes by itself), Starfield, four picture wallpapers with a light
   running along the neon outline, Frame trace, Aurora drift, drawn scenes, the Galaxy Media logo and Plain
   dark. Lower-end sticks skip the animated ones. Each moving background is measured on the stick and Rotate
   skips any that draw too slowly.
-- **Your shelf:** apps listed in the settings file, plus up to 8 total that a person adds themselves: hold OK
-  on an app in All apps and choose Add to my shelf. Hold OK on one of your added tiles to take it off.
-- **Gear menu:** All apps (hold OK for Open, Add to my shelf, Uninstall), Stick health (Wi-Fi, speed test, memory, heat, restarts,
+- **Gear menu:** All apps (hold OK on an app to remove it), Stick health (Wi-Fi, speed test, memory, heat, restarts,
   which backgrounds are smooth), Pay / Renew, Fire TV settings, Settings, Setup & updates, Help.
 - **Setup and updates:** downloads every app first, then opens the install prompts one after another, and
   updates itself from this repository's releases.

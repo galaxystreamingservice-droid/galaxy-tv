@@ -853,7 +853,7 @@ class HomeActivity : AppCompatActivity() {
         val nice = SimpleDateFormat("MMM d", Locale.getDefault()).format(date)
         if (days > 14) return null   // far away: nothing to remind about yet
         val color = if (days <= 3) red else amber
-        return ChipSpec(if (days < 0) "VPN expired $nice" else "VPN renews $nice", color) { openPay() }
+        return ChipSpec(if (days < 0) "VPN expired · Renew" else "Renew VPN · $nice", color) { openPay() }
     }
 
     private fun rebuildChips() {
@@ -878,9 +878,11 @@ class HomeActivity : AppCompatActivity() {
         if (prefs.cleanupDue()) chips += ChipSpec("Maintenance due", accent) { openCleanup() }
         if (renewal != null && !renewalUrgent) chips += renewal
         val vpn = vpnOn()
-        chips += ChipSpec(if (vpn) "VPN on" else "VPN off", if (vpn) green else mutedColor) { openVpnApp() }
+        val vpnChip = ChipSpec(if (vpn) "VPN on" else "VPN off", if (vpn) green else mutedColor) { openVpnApp() }
+        val contactChip = ChipSpec("Contact", mutedColor) { openContact() }
 
-        val shownChips = chips.take(4) // max four; the lowest-priority ones drop off
+        // The VPN and Contact chips are always shown; other chips share the two remaining slots by priority.
+        val shownChips = chips.take(2) + vpnChip + contactChip
         val sig = shownChips.joinToString("|") { it.text + it.color }
         if (sig == chipSignature && chipRow.childCount > 0) return
         chipSignature = sig
@@ -921,34 +923,14 @@ class HomeActivity : AppCompatActivity() {
         return (avail / count.coerceAtLeast(1) - dp(16)).coerceIn(dp(96), dp(136))
     }
 
-    private class ShelfItem(val name: String, val pkg: String, val mine: Boolean)
+    private class ShelfItem(val name: String, val pkg: String)
 
-    /** The shelf: apps from the settings file, then apps this person added from All apps (up to the cap). */
+    /** The shelf: the apps in the settings file. WorldVPN is left off, because the VPN chip opens it. */
     private fun shelfItems(): List<ShelfItem> {
         val hidden = prefs.hiddenApps
-        val items = ArrayList<ShelfItem>()
-        settings?.apps?.filter { it.pinned && it.packageName !in hidden }?.forEach { items += ShelfItem(it.name, it.packageName, false) }
-        val extras = ArrayList<ShelfItem>()
-        for (pkg in prefs.extraShelf) {
-            if (items.any { it.pkg == pkg } || !updater.isInstalled(pkg)) continue
-            val label = try { packageManager.getApplicationLabel(packageManager.getApplicationInfo(pkg, 0)).toString() } catch (e: Exception) { continue }
-            extras += ShelfItem(label, pkg, true)
-        }
-        items += extras.sortedBy { it.name.lowercase() }
-        return items.take(Themes.maxShelfApps)
-    }
-
-    private fun confirmUnpin(a: ShelfItem) {
-        AlertDialog.Builder(this)
-            .setTitle("Remove ${a.name} from your shelf?")
-            .setMessage("The app stays installed. You can add it again from All apps.")
-            .setPositiveButton("Remove") { _, _ ->
-                prefs.extraShelf = prefs.extraShelf - a.pkg
-                shelfSignature = ""
-                rebuildShelf()
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
+        return (settings?.apps ?: emptyList())
+            .filter { it.pinned && it.packageName !in hidden && it.packageName != "io.world.vpn" }
+            .map { ShelfItem(it.name, it.packageName) }
     }
 
     private fun rebuildShelf() {
@@ -966,7 +948,7 @@ class HomeActivity : AppCompatActivity() {
             val icon: Drawable? = if (installed) {
                 try { packageManager.getApplicationIcon(a.pkg) } catch (e: Exception) { null }
             } else null
-            val tile = makeTile(a.name, icon, a.name.take(1).uppercase(), a.pkg, onLong = if (a.mine) ({ confirmUnpin(a) }) else null) {
+            val tile = makeTile(a.name, icon, a.name.take(1).uppercase(), a.pkg) {
                 val i = packageManager.getLeanbackLaunchIntentForPackage(a.pkg)
                     ?: packageManager.getLaunchIntentForPackage(a.pkg)
                 if (i == null) Toast.makeText(this, "${a.name} isn't installed yet. Open Setup & updates.", Toast.LENGTH_LONG).show()
@@ -989,7 +971,7 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
-    private fun makeTile(label: String, icon: Drawable?, glyph: String, tag: String, onLong: (() -> Unit)? = null, onClick: () -> Unit): View {
+    private fun makeTile(label: String, icon: Drawable?, glyph: String, tag: String, onClick: () -> Unit): View {
         val box = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
@@ -1022,7 +1004,6 @@ class HomeActivity : AppCompatActivity() {
         box.addView(lbl, LinearLayout.LayoutParams(MATCH, WRAP))
         labels += lbl to textColor
         box.setOnClickListener { onClick() }
-        if (onLong != null) box.setOnLongClickListener { onLong(); true }
         style(box, 14f, labels)
         return box
     }
@@ -1106,6 +1087,7 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun openPay() { startActivity(Intent(this, PayActivity::class.java)) }
+    private fun openContact() { startActivity(Intent(this, ContactActivity::class.java)) }
 
     /** The VPN chip opens the WorldVPN app, where each person signs in and connects. */
     private fun openVpnApp() {
