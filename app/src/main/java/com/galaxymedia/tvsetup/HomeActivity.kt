@@ -845,7 +845,7 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun renewalChip(): ChipSpec? {
-        val exp = settings?.iptvExpires ?: return null
+        val exp = settings?.vpnExpires ?: return null
         if (exp.isBlank()) return null
         val date = try { SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(exp) } catch (e: Exception) { null } ?: return null
         val endOfDay = date.time + 86_399_000L
@@ -853,7 +853,7 @@ class HomeActivity : AppCompatActivity() {
         val nice = SimpleDateFormat("MMM d", Locale.getDefault()).format(date)
         if (days > 14) return null   // far away: nothing to remind about yet
         val color = if (days <= 3) red else amber
-        return ChipSpec(if (days < 0) "IPTV expired $nice" else "IPTV renews $nice", color, null)
+        return ChipSpec(if (days < 0) "VPN expired $nice" else "VPN renews $nice", color) { openPay() }
     }
 
     private fun rebuildChips() {
@@ -1076,6 +1076,8 @@ class HomeActivity : AppCompatActivity() {
         startActivity(Intent(this, CleanupActivity::class.java))
     }
 
+    private fun openPay() { startActivity(Intent(this, PayActivity::class.java)) }
+
     private fun askRestart(upHours: Long) {
         AlertDialog.Builder(this)
             .setTitle("Restart for best speed")
@@ -1107,13 +1109,14 @@ class HomeActivity : AppCompatActivity() {
     private fun showMenu() {
         AlertDialog.Builder(this)
             .setTitle("Galaxy Media")
-            .setItems(arrayOf("All apps", "Stick health", "Fire TV settings", "Settings", "Setup & updates", "Help: fix it")) { _, which ->
+            .setItems(arrayOf("All apps", "Stick health", "Pay / Renew", "Fire TV settings", "Settings", "Setup & updates", "Help: fix it")) { _, which ->
                 when (which) {
                     0 -> startActivity(Intent(this, AllAppsActivity::class.java))
                     1 -> startActivity(Intent(this, HealthActivity::class.java))
-                    2 -> openFireSettings()
-                    3 -> startActivity(Intent(this, SettingsActivity::class.java))
-                    4 -> openSetup()
+                    2 -> openPay()
+                    3 -> openFireSettings()
+                    4 -> startActivity(Intent(this, SettingsActivity::class.java))
+                    5 -> openSetup()
                     else -> startActivity(Intent(this, HelpActivity::class.java))
                 }
             }

@@ -21,6 +21,16 @@ object SetupCodes {
 
     private val hex32 = Regex("^[0-9a-fA-F]{32}$")
 
+    /** The "_payment" block of the secret codes file (QR pictures and the text-me note). Blocking. */
+    fun payment(): JSONObject? = try {
+        val conn = (URL(CODES_URL).openConnection() as HttpURLConnection).apply {
+            connectTimeout = 8000
+            readTimeout = 8000
+            setRequestProperty("User-Agent", "galaxy-media")
+        }
+        JSONObject(conn.inputStream.bufferedReader().use { it.readText() }).optJSONObject("_payment")
+    } catch (e: Exception) { null }
+
     /** Blocking. Call from a background thread. */
     fun resolve(input: String): Result {
         val raw = input.trim()

@@ -36,7 +36,8 @@ data class DeviceSettings(
     val leagues: List<String>,
     val teams: Map<String, String>,
     val boxing: List<BoxingEvent>,
-    val iptvExpires: String = "", // "YYYY-MM-DD", optional
+    val iptvExpires: String = "", // old, no longer shown
+    val vpnExpires: String = "", // "YYYY-MM-DD", when this person's VPN renews
     val notice: String = "" // optional family notice shown as a banner on the home screen
 ) {
     companion object {
@@ -101,6 +102,7 @@ data class DeviceSettings(
                 teams = teams,
                 boxing = boxing,
                 iptvExpires = o.optString("iptvExpires", ""),
+                vpnExpires = o.optString("vpnExpires", ""),
                 notice = o.optString("notice", "")
             )
         }

@@ -70,6 +70,11 @@ class Prefs(ctx: Context) {
         get() = sp.getLong("restartSnoozeUntil", 0L)
         set(v) = sp.edit().putLong("restartSnoozeUntil", v).apply()
 
+    /** The last payment screen details, so it still opens offline. */
+    var paymentCache: String
+        get() = sp.getString("paymentCache", "") ?: ""
+        set(v) = sp.edit().putString("paymentCache", v).apply()
+
     /** The last connection test, for the Stick health screen. */
     var lastSpeed: String
         get() = sp.getString("lastSpeed", "") ?: ""
