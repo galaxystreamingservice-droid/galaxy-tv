@@ -29,6 +29,11 @@ Check everything worked (read-only, saves a screenshot of the TV):
   .\galaxy-maintain.ps1 -Ip 192.168.1.172 -Verify     PASS / WARN / FAIL list for the whole setup
   .\galaxy-maintain.ps1 -Ip 192.168.1.172 -Screenshot just save a picture of what the TV shows
 
+HOME lock test, all from the laptop (Amazon's home screen is switched back on at the end unless you say otherwise):
+  .\galaxy-maintain.ps1 -Ip 192.168.1.172 -HomeProbe          5-second check: does Fire OS even allow it? (switched back on right away)
+  .\galaxy-maintain.ps1 -Ip 192.168.1.172 -InstallHomeTest    download and install the HOME TEST app over ADB
+  .\galaxy-maintain.ps1 -Ip 192.168.1.172 -HomeTest           lock, press Home from ADB, check what opens, then ask: undo or keep
+
 HOME screen test (only with the separate "Galaxy Media HOME TEST" app installed, never on family sticks):
   .\galaxy-maintain.ps1 -Ip 192.168.1.172 -HomeCheck   read-only: who answers the Home button right now
   .\galaxy-maintain.ps1 -Ip 192.168.1.172 -HomeLock    Home button opens Galaxy Media (turns Amazon's home off)
@@ -65,6 +70,9 @@ param(
     [string]$Label,
     [int]$IdleMinutes = 10,
     [switch]$Summarize,
+    [switch]$HomeProbe,
+    [switch]$HomeTest,
+    [switch]$InstallHomeTest,
     [string]$Gist,
     [int]$Port = 5555,
     [string]$Pair
@@ -76,7 +84,7 @@ $ErrorActionPreference = 'Continue'   # adb writes status text to stderr; don't 
 $ListUrl = 'https://raw.githubusercontent.com/galaxystreamingservice-droid/galaxy-tv/main/app/src/main/assets/debloat_fireos.json'
 
 # No action chosen = the safe default set.
-if (-not ($Report -or $Debloat -or $Trim -or $AutoStart -or [bool]$Speed -or $Reboot -or $HomeCheck -or $HomeLock -or $HomeUndo -or $Verify -or $Screenshot -or $Audit -or $Benchmark -or $Undebloat -or $Dump -or $InstallApps -or $Cycle -or $Summarize)) {
+if (-not ($Report -or $Debloat -or $Trim -or $AutoStart -or [bool]$Speed -or $Reboot -or $HomeCheck -or $HomeLock -or $HomeUndo -or $Verify -or $Screenshot -or $Audit -or $Benchmark -or $Undebloat -or $Dump -or $InstallApps -or $Cycle -or $Summarize -or $HomeProbe -or $HomeTest -or $InstallHomeTest)) {
     $Report = $true; $Debloat = $true; $Trim = $true; $AutoStart = $true
 }
 
@@ -625,6 +633,91 @@ if ($InstallApps) {
             Remove-Item -Recurse -Force $tmpDir -ErrorAction SilentlyContinue
             Say '  Done. Run -Verify to check the whole stick.'
         }
+    }
+}
+
+# ---- HOME LOCK TEST, driven from the laptop ----
+function Top-Activity {
+    $t = Sh 'dumpsys activity activities' | Where-Object { $_ -match 'mResumedActivity' } | Select-Object -First 1
+    return [string]$t
+}
+if ($HomeProbe) {
+    Say "=== HOME PROBE (can Fire OS turn off Amazon's home screen? It is switched back on right away) ==="
+    Say '  Keep an app in front on the TV (Galaxy Media is fine), not Amazon''s home screen, while this runs.' 'Yellow'
+    $r = (Sh "pm disable-user --user 0 $AmazonHome") -join ' '
+    if ($r -match 'Exception|Error|protected|Unknown') {
+        Say "  Fire OS refused: $r" 'Yellow'
+        Say '  So a Home-button lock-in is not possible on this stick. Nothing was changed.'
+    } else {
+        Start-Sleep -Seconds 3
+        Sh "pm enable $AmazonHome" | Out-Null
+        $offNow = Get-List 'pm list packages -d'
+        if ($offNow -contains $AmazonHome) { Sh "pm enable $AmazonHome" | Out-Null; Start-Sleep -Seconds 1; $offNow = Get-List 'pm list packages -d' }
+        if ($offNow -contains $AmazonHome) { Say "  Fire OS allowed it, but Amazon's home screen is STILL OFF. Run -HomeUndo now." 'Red' }
+        else { Say "  Fire OS allows it, and Amazon's home screen is back on. A lock-in is possible on this stick." 'Green' }
+    }
+}
+if ($InstallHomeTest) {
+    Say '=== INSTALL HOME TEST APP (over ADB) ==='
+    try {
+        $rels = Invoke-RestMethod -UseBasicParsing -ErrorAction Stop -Headers @{ 'User-Agent' = 'galaxy-maintain' } 'https://api.github.com/repos/galaxystreamingservice-droid/galaxy-tv/releases'
+        $rel = @($rels | Where-Object { $_.prerelease -and $_.tag_name -like 'home-test-*' }) | Select-Object -First 1
+        $asset = if ($rel) { @($rel.assets | Where-Object { $_.name -like '*.apk' }) | Select-Object -First 1 } else { $null }
+        if (-not $asset) { Say '  No HOME TEST pre-release found. On GitHub, run Actions > Build HOME test APK first.' 'Yellow' }
+        else {
+            $apk = Join-Path $env:TEMP 'galaxy-home-test.apk'
+            Say ("  Downloading " + $rel.tag_name + " ...")
+            Invoke-WebRequest -UseBasicParsing -ErrorAction Stop $asset.browser_download_url -OutFile $apk
+            $r = (& $adb -s $target install -r $apk 2>&1 | Out-String).Trim()
+            Remove-Item $apk -ErrorAction SilentlyContinue
+            if ($r -match 'Success') { Say '  Installed: Galaxy Media HOME TEST. Open it once on the TV and do the wizard.' 'Green' } else { Say "  Install failed: $r" 'Yellow' }
+        }
+    } catch { Say '  Could not reach GitHub from the laptop.' 'Yellow' }
+}
+if ($HomeTest) {
+    Say '=== HOME TEST (lock, press Home from ADB, check, then undo or keep) ==='
+    $inst = Get-List 'pm list packages'
+    if ($inst -notcontains $TestPkg) {
+        Say '  The HOME TEST app is not installed. Run -InstallHomeTest first.' 'Yellow'
+    } else {
+        Write-Host "This turns off Amazon's home screen for a few minutes. Keep this window open."
+        $go = if ($Yes) { 'y' } else { Read-Host 'Continue? (y/n)' }
+        if ($go -eq 'y') {
+            $r = (Sh "pm disable-user --user 0 $AmazonHome") -join ' '
+            if ($r -match 'Exception|Error|protected|Unknown') {
+                Say "  Fire OS refused: $r" 'Yellow'
+                Say '  Nothing changed. Try pressing Home on the remote: a "choose a home app" box may appear.'
+            } else {
+                Start-Sleep -Seconds 3
+                Sh 'input keyevent KEYCODE_HOME' | Out-Null
+                Start-Sleep -Seconds 4
+                $t1 = Top-Activity
+                Say "  After pressing Home: $t1"
+                Chk ($t1 -match 'galaxymedia\.tvsetup\.hometest') 'Home opens Galaxy Media (HOME TEST)'
+                # from inside another app
+                Sh 'monkey -p com.esaba.downloader -c android.intent.category.LEANBACK_LAUNCHER 1' | Out-Null
+                Start-Sleep -Seconds 4
+                $t2a = Top-Activity
+                Sh 'input keyevent KEYCODE_HOME' | Out-Null
+                Start-Sleep -Seconds 4
+                $t2 = Top-Activity
+                Say "  Another app was open: $t2a"
+                Say "  After pressing Home again: $t2"
+                Chk ($t2 -match 'galaxymedia\.tvsetup\.hometest') 'Home from inside another app returns to Galaxy Media'
+                Show-Home
+                Write-Host ''
+                Write-Host 'Now look at the TV and try the remote: Home, the gear menu, All apps, Fire TV settings, Back.'
+                $ans = if ($Yes) { 'y' } else { Read-Host 'Put Amazon''s home screen back now? (y = undo, n = keep the lock for more testing) [y]' }
+                if ($ans -ne 'n') {
+                    Sh "pm enable $AmazonHome" | Out-Null
+                    Sh "pm clear-package-preferred-activities $TestPkg" | Out-Null
+                    $offNow = Get-List 'pm list packages -d'
+                    if ($offNow -contains $AmazonHome) { Say "  Amazon's home screen is STILL OFF. Run -HomeUndo." 'Red' } else { Say "  Amazon's home screen is back on." 'Green' }
+                } else {
+                    Say '  The lock is still on. To undo: .\galaxy-maintain.ps1 -Ip <IP> -HomeUndo' 'Yellow'
+                }
+            }
+        } else { Say '  Skipped by you. Nothing was changed.' }
     }
 }
 
