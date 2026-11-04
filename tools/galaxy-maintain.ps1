@@ -84,7 +84,7 @@ param(
     [string]$Pair
 )
 
-$ScriptVersion = '2026-11-01 verify'
+$ScriptVersion = 'v0.12.11 (2026-11-04)'
 Write-Host "galaxy-maintain $ScriptVersion" -ForegroundColor DarkGray
 $ErrorActionPreference = 'Continue'   # adb writes status text to stderr; don't treat that as an error
 $ListUrl = 'https://raw.githubusercontent.com/galaxystreamingservice-droid/galaxy-tv/main/app/src/main/assets/debloat_fireos.json'
@@ -762,8 +762,8 @@ if ($RemoveApps) {
     } else {
         Say "  These $($extras.Count) apps would be uninstalled (their sign-ins and data are lost):" 'Yellow'
         foreach ($p in $extras) {
-            $label = if ($names.ContainsKey($p)) { '   (' + $names[$p] + ')' } else { '' }
-            Say ('    ' + $p + $label)
+            $friendly = if ($names.ContainsKey($p)) { '   (' + $names[$p] + ')' } else { '' }
+            Say ('    ' + $p + $friendly)
         }
         if ($DryRun) {
             Say '  Dry run: nothing was removed.'
