@@ -57,6 +57,8 @@ for trying this on Google TV boxes.
     .\galaxy-maintain.ps1 -Ip <stick IP> -Cycle -Label bloat1   restart, wait, measure (then -Summarize to compare)
     .\galaxy-maintain.ps1 -Ip <stick IP> -InstallApps -Gist <code>   install the shelf apps with no taps on the TV
     .\galaxy-maintain.ps1 -Ip <stick IP> -Dump        save the package list of a new kind of box
+    .\galaxy-maintain.ps1 -Ip <IP> -Setup -PersonName "Name" -ZipCode 12345 -Gist GAL-4821   set up a whole stick from the laptop
+    .\galaxy-maintain.ps1 -Ip <IP> -Record -Seconds 600   record the TV screen on the laptop (no TV frame)
     .\galaxy-maintain.ps1 -Ip <IP> -RemoveApps -DryRun   list the apps you installed that are not on the keep list (then without -DryRun to remove them)
 
 Nothing is ever uninstalled. Debloat only switches packages off, and Fire OS refuses a few of them.

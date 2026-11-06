@@ -30,6 +30,14 @@ Check everything worked (read-only, saves a screenshot of the TV):
   .\galaxy-maintain.ps1 -Ip 192.168.1.172 -Verify     PASS / WARN / FAIL list for the whole setup
   .\galaxy-maintain.ps1 -Ip 192.168.1.172 -Screenshot just save a picture of what the TV shows
 
+Set up a whole stick from the laptop (needs ADB debugging on and the Allow prompt accepted; nothing to press on the TV):
+  .\galaxy-maintain.ps1 -Ip 192.168.1.172 -Setup -PersonName "Carlos" -ZipCode 76101 -Gist GAL-4821
+  It installs the newest Galaxy Media, fills in the name, weather city and settings link, installs the shelf apps,
+  then runs the normal setup (debloat on Fire sticks, trim caches, auto-start) and a Verify.
+Record the TV screen on the laptop (clean picture, no TV frame; saved in 170-second parts):
+  .\galaxy-maintain.ps1 -Ip 192.168.1.172 -Record -Seconds 600
+  Open a second PowerShell window for the other commands while it records. Ctrl+C stops early.
+
 Remove every app you installed except the ones you keep (it lists them and asks first; their sign-ins and data are lost):
   .\galaxy-maintain.ps1 -Ip 192.168.1.165 -RemoveApps -DryRun              list only: do this first
   .\galaxy-maintain.ps1 -Ip 192.168.1.165 -RemoveApps                      then remove (type y)
@@ -75,6 +83,11 @@ param(
     [int]$IdleMinutes = 10,
     [switch]$Summarize,
     [switch]$RemoveApps,
+    [switch]$Setup,
+    [string]$PersonName,
+    [string]$ZipCode,
+    [switch]$Record,
+    [int]$Seconds = 0,
     [string[]]$Keep,
     [switch]$HomeProbe,
     [switch]$HomeTest,
@@ -90,7 +103,7 @@ $ErrorActionPreference = 'Continue'   # adb writes status text to stderr; don't 
 $ListUrl = 'https://raw.githubusercontent.com/galaxystreamingservice-droid/galaxy-tv/main/app/src/main/assets/debloat_fireos.json'
 
 # No action chosen = the safe default set.
-$anyAction = ($Report -or $Debloat -or $Trim -or $AutoStart -or [bool]$Speed -or $Reboot -or $HomeCheck -or $HomeLock -or $HomeUndo -or $Verify -or $Screenshot -or $Audit -or $Benchmark -or $Undebloat -or $Dump -or $InstallApps -or $Cycle -or $Summarize -or $RemoveApps -or $HomeProbe -or $HomeTest -or $InstallHomeTest)
+$anyAction = ($Report -or $Debloat -or $Trim -or $AutoStart -or [bool]$Speed -or $Reboot -or $HomeCheck -or $HomeLock -or $HomeUndo -or $Verify -or $Screenshot -or $Audit -or $Benchmark -or $Undebloat -or $Dump -or $InstallApps -or $Cycle -or $Summarize -or $RemoveApps -or $Setup -or $Record -or $HomeProbe -or $HomeTest -or $InstallHomeTest)
 $defaultRun = $false
 if (-not $anyAction -and -not $Pair) {
     $Report = $true; $Debloat = $true; $Trim = $true; $AutoStart = $true; $defaultRun = $true
@@ -221,6 +234,141 @@ if ($defaultRun -and $maker -and ($maker -notmatch 'Amazon')) {
 $date = Get-Date -Format 'yyyy-MM-dd'
 $stamp = Get-Date -Format 'yyyy-MM-dd_HHmm'
 $changed = $false
+
+# ---- helpers for -Setup and -InstallApps ----
+function Resolve-SettingsUrl([string]$g) {
+    $g = $g.Trim()
+    if ($g -match '^https?://') { return $g }
+    if ($g -match '^[0-9a-fA-F]{32}$') { return "https://gist.githubusercontent.com/galaxystreamingservice-droid/$($g.ToLower())/raw/device-settings.json" }
+    $clean = ($g.ToUpper() -replace '[^A-Z0-9]', '')
+    $key = if ($clean.StartsWith('GAL') -and $clean.Length -gt 3) { 'GAL-' + $clean.Substring(3) } else { $clean }
+    $codes = $null
+    try { $codes = (Invoke-WebRequest -UseBasicParsing -ErrorAction Stop 'https://gist.githubusercontent.com/galaxystreamingservice-droid/4f0ff093b9423982b318fb21320b1c70/raw/setup-codes.json').Content | ConvertFrom-Json }
+    catch { return $null }
+    $val = $null
+    foreach ($prop in $codes.PSObject.Properties) { if ($prop.Name.Trim().ToUpper() -eq $key) { $val = [string]$prop.Value } }
+    if (-not $val) { return $null }
+    if ($val -match '^https?://') { return $val }
+    if ($val -match '^[0-9a-fA-F]{32}$') { return "https://gist.githubusercontent.com/galaxystreamingservice-droid/$($val.ToLower())/raw/device-settings.json" }
+    return $null
+}
+
+function Install-ShelfApps([string]$setUrl) {
+    $set = $null
+    try { $set = (Invoke-WebRequest -UseBasicParsing -ErrorAction Stop $setUrl).Content | ConvertFrom-Json }
+    catch { Say '  Could not read the settings file. Check the code and the laptop internet.' 'Yellow' }
+    if ($set) {
+        $installedNow = Get-List 'pm list packages'
+        $tmpDir = Join-Path $env:TEMP 'galaxy-apks'
+        New-Item -ItemType Directory -Force -Path $tmpDir | Out-Null
+        foreach ($a in @($set.apps)) {
+            $nm = [string]$a.name
+            if ($a.managedByStore -or -not $a.apkUrl -or ([string]$a.apkUrl) -like 'REPLACE*') { Say "  ${nm}: skipped (updates through its own store, or no link in the settings file)"; continue }
+            if ($installedNow -contains [string]$a.package) { Say "  ${nm}: already installed"; continue }
+            $file = Join-Path $tmpDir (([string]$a.package) + '.apk')
+            Say "  ${nm}: downloading ..."
+            try { Invoke-WebRequest -UseBasicParsing -ErrorAction Stop ([string]$a.apkUrl) -OutFile $file }
+            catch { Say "  ${nm}: download failed" 'Yellow'; continue }
+            Say "  ${nm}: installing ..."
+            $r = (& $adb -s $target install -r $file 2>&1 | Out-String).Trim()
+            if ($r -match 'Success') { Say "  ${nm}: installed" 'Green' } else { Say "  ${nm}: failed ($r)" 'Yellow' }
+        }
+        Remove-Item -Recurse -Force $tmpDir -ErrorAction SilentlyContinue
+    }
+}
+
+# ---- RECORD: record the TV screen on the laptop (no TV frame, no phone camera) ----
+if ($Record) {
+    $total = if ($Seconds -gt 0) { $Seconds } else { 300 }
+    $recDir = Join-Path $PSScriptRoot 'reports\recordings'
+    New-Item -ItemType Directory -Force -Path $recDir | Out-Null
+    $recStamp = Get-Date -Format 'yyyy-MM-dd_HHmm'
+    Write-Host "=== RECORD: $total seconds of the TV picture, saved in parts of up to 170 seconds ===" -ForegroundColor Cyan
+    Write-Host '  Do your steps now (remote, or commands in a second window). Ctrl+C stops early.' -ForegroundColor Yellow
+    Write-Host '  There is no sound, and a second or two is lost between parts. Protected video shows black.' -ForegroundColor DarkGray
+    $started = Get-Date
+    $part = 1
+    while ($true) {
+        $left = [int]($total - ((Get-Date) - $started).TotalSeconds)
+        if ($left -lt 3) { break }
+        $len = [Math]::Min(170, $left)
+        $remote = "/sdcard/galaxy-rec-$part.mp4"
+        & $adb -s $target shell "screenrecord --time-limit $len --bit-rate 8000000 $remote" 2>&1 | Out-Null
+        $local = Join-Path $recDir ("$recStamp-part$part.mp4")
+        & $adb -s $target pull $remote $local 2>&1 | Out-Null
+        & $adb -s $target shell "rm $remote" 2>&1 | Out-Null
+        if (Test-Path $local) { Write-Host "  saved: $local" -ForegroundColor Green }
+        else { Write-Host '  nothing was saved. This stick may not allow screen recording.' -ForegroundColor Yellow; break }
+        $part++
+    }
+    Write-Host "  Done. Recordings are in: $recDir"
+    exit 0
+}
+
+# ---- SETUP: set up a whole stick from the laptop ----
+if ($Setup) {
+    Say '=== SETUP (the laptop does the setup; nothing to press on the TV) ==='
+    if (-not $PersonName -or -not $ZipCode -or -not $Gist) {
+        Say '  Add all three: -PersonName "Name" -ZipCode 12345 -Gist GAL-4821' 'Yellow'
+        exit 1
+    }
+    $setUrl = Resolve-SettingsUrl $Gist
+    if (-not $setUrl) { Say '  Could not turn that code into a settings link. Check the code and the laptop internet.' 'Yellow'; exit 1 }
+    $cityName = ''; $cityLat = ''; $cityLon = ''
+    try {
+        $zr = Invoke-RestMethod -UseBasicParsing -ErrorAction Stop "https://api.zippopotam.us/us/$ZipCode"
+        $place = $zr.places[0]
+        $cityName = ([string]$place.'place name') + ', ' + ([string]$place.'state abbreviation')
+        $cityLat = [string]$place.latitude
+        $cityLon = [string]$place.longitude
+        Say "  Weather city: $cityName"
+    } catch { Say '  Could not look up that ZIP code, so the weather line stays off (you can set it in Settings).' 'Yellow' }
+    Write-Host "This installs the newest Galaxy Media, saves the name '$PersonName' and the settings link in it, installs the shelf apps,"
+    Write-Host 'then runs the normal setup. Anything already saved in Galaxy Media on this stick is replaced.'
+    $go = if ($Yes) { 'y' } else { Read-Host 'Continue? (y/n)' }
+    if ($go -ne 'y') { Say '  Skipped by you. Nothing was changed.'; exit 0 }
+
+    # 1. install the newest Galaxy Media
+    $apk = Join-Path $env:TEMP 'galaxy-setup-latest.apk'
+    try { Invoke-WebRequest -UseBasicParsing -ErrorAction Stop 'https://github.com/galaxystreamingservice-droid/galaxy-tv/releases/latest/download/galaxy-setup.apk' -OutFile $apk }
+    catch { Say '  Could not download Galaxy Media from GitHub.' 'Yellow'; exit 1 }
+    $ir = (& $adb -s $target install -r $apk 2>&1 | Out-String).Trim()
+    Remove-Item $apk -ErrorAction SilentlyContinue
+    if ($ir -match 'Success') { Say '  Galaxy Media installed.' 'Green' } else { Say "  Galaxy Media install failed: $ir" 'Yellow'; exit 1 }
+
+    # 2. fill in what the first-run wizard would have saved
+    Sh 'am force-stop com.galaxymedia.tvsetup' | Out-Null
+    $esc = { param($t) [System.Security.SecurityElement]::Escape([string]$t) }
+    $xml = "<?xml version='1.0' encoding='utf-8' standalone='yes' ?>`n<map>`n" +
+           "    <string name=`"settingsUrl`">" + (& $esc $setUrl) + "</string>`n" +
+           "    <string name=`"userName`">" + (& $esc $PersonName) + "</string>`n" +
+           "    <boolean name=`"namePrompted`" value=`"true`" />`n"
+    if ($cityName) {
+        $xml += "    <string name=`"weatherName`">" + (& $esc $cityName) + "</string>`n" +
+                "    <string name=`"weatherLat`">" + (& $esc $cityLat) + "</string>`n" +
+                "    <string name=`"weatherLon`">" + (& $esc $cityLon) + "</string>`n"
+    }
+    $xml += "</map>`n"
+    $tmpXml = Join-Path $env:TEMP 'galaxy-prefs.xml'
+    [System.IO.File]::WriteAllText($tmpXml, $xml, (New-Object System.Text.UTF8Encoding($false)))
+    & $adb -s $target push $tmpXml /data/local/tmp/galaxy-prefs.xml 2>&1 | Out-Null
+    Remove-Item $tmpXml -ErrorAction SilentlyContinue
+    Sh 'run-as com.galaxymedia.tvsetup mkdir -p shared_prefs' | Out-Null
+    $wr = (Sh 'run-as com.galaxymedia.tvsetup cp /data/local/tmp/galaxy-prefs.xml shared_prefs/galaxy.xml') -join ' '
+    Sh 'rm /data/local/tmp/galaxy-prefs.xml' | Out-Null
+    if ($wr -match 'not debuggable|Permission denied|Unknown package|No such file|error') {
+        Say "  Could not save the name and settings link ($wr). Open Galaxy Media on the TV and use its first-run steps instead." 'Yellow'
+    } else {
+        Say "  Saved the name, weather city and settings link." 'Green'
+    }
+
+    # 3. open it, install the shelf apps, then the normal setup and a check
+    Sh 'monkey -p com.galaxymedia.tvsetup -c android.intent.category.LEANBACK_LAUNCHER 1' | Out-Null
+    Say '=== INSTALL APPS ==='
+    Install-ShelfApps $setUrl
+    $Report = $true; $AutoStart = $true; $Verify = $true
+    if ($maker -match 'Amazon') { $Debloat = $true; $Trim = $true }
+}
 
 # ---- CYCLE: restart, stay idle, then measure (for before/after tests) ----
 if ($Cycle) {
@@ -631,31 +779,11 @@ if ($Dump) {
 if ($InstallApps) {
     Say '=== INSTALL APPS (installed over ADB, nothing to press on the TV) ==='
     if (-not $Gist) {
-        Say '  Add the settings code: -Gist <the 32-character code, or the full settings link>' 'Yellow'
+        Say '  Add the settings code: -Gist GAL-4821 (or the 32-character code, or the full settings link)' 'Yellow'
     } else {
-        $setUrl = if ($Gist -match '^https?://') { $Gist } else { "https://gist.githubusercontent.com/galaxystreamingservice-droid/$($Gist.ToLower())/raw/device-settings.json" }
-        $set = $null
-        try { $set = (Invoke-WebRequest -UseBasicParsing -ErrorAction Stop $setUrl).Content | ConvertFrom-Json }
-        catch { Say '  Could not read the settings file. Check the code and the laptop internet.' 'Yellow' }
-        if ($set) {
-            $installedNow = Get-List 'pm list packages'
-            $tmpDir = Join-Path $env:TEMP 'galaxy-apks'
-            New-Item -ItemType Directory -Force -Path $tmpDir | Out-Null
-            foreach ($a in @($set.apps)) {
-                $nm = [string]$a.name
-                if ($a.managedByStore -or -not $a.apkUrl -or ([string]$a.apkUrl) -like 'REPLACE*') { Say "  ${nm}: skipped (updates through its own store, or no link in the settings file)"; continue }
-                if ($installedNow -contains [string]$a.package) { Say "  ${nm}: already installed"; continue }
-                $file = Join-Path $tmpDir (([string]$a.package) + '.apk')
-                Say "  ${nm}: downloading ..."
-                try { Invoke-WebRequest -UseBasicParsing -ErrorAction Stop ([string]$a.apkUrl) -OutFile $file }
-                catch { Say "  ${nm}: download failed" 'Yellow'; continue }
-                Say "  ${nm}: installing ..."
-                $r = (& $adb -s $target install -r $file 2>&1 | Out-String).Trim()
-                if ($r -match 'Success') { Say "  ${nm}: installed" 'Green' } else { Say "  ${nm}: failed ($r)" 'Yellow' }
-            }
-            Remove-Item -Recurse -Force $tmpDir -ErrorAction SilentlyContinue
-            Say '  Done. Run -Verify to check the whole stick.'
-        }
+        $setUrlIA = Resolve-SettingsUrl $Gist
+        if (-not $setUrlIA) { Say '  Could not turn that code into a settings link. Check the code and the laptop internet.' 'Yellow' }
+        else { Install-ShelfApps $setUrlIA; Say '  Done. Run -Verify to check the whole stick.' }
     }
 }
 
