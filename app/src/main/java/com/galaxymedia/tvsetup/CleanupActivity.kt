@@ -229,8 +229,9 @@ class CleanupActivity : AppCompatActivity() {
             buttons.addView(b, buttonParams())
             if (focusTarget == null) focusTarget = b
         }
-        val open = if (s.kind == "cache") button("Open apps list") { openApplicationsList() }
-                   else button("Open Settings") { SystemSettings.open(this, SystemSettings.Target.MAIN, null, s.path) }
+        val direct = SystemSettings.canOpenDirectly(this)
+        val open = if (s.kind == "cache") button(if (direct) "Open apps list" else "Show me where") { openApplicationsList() }
+                   else button(if (direct) "Open Settings" else "Show me where") { SystemSettings.open(this, SystemSettings.Target.MAIN, null, s.path) }
         buttons.addView(open, buttonParams())
         if (focusTarget == null) focusTarget = open
         if (step > 0) buttons.addView(button("Back") { step--; render() }, buttonParams())

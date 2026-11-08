@@ -40,6 +40,9 @@ object SystemSettings {
         return false
     }
 
+    /** True when apps can open Settings screens directly on this box. False on Fire OS 8, where only a placeholder answers. */
+    fun canOpenDirectly(ctx: Context): Boolean = !placeholderPresent(ctx.packageManager)
+
     private fun tryStart(ctx: Context, i: Intent): Boolean {
         val pm = ctx.packageManager
         val flags = if (i.component != null) 0 else PackageManager.MATCH_DEFAULT_ONLY
@@ -86,8 +89,8 @@ object SystemSettings {
             return if (target == Target.MAIN) Result.EXACT else Result.GENERAL
         }
         AlertDialog.Builder(activity)
-            .setTitle("Open Settings")
-            .setMessage("This box doesn't let apps open its Settings page. Press Home, open Settings (the gear icon), and go to:\n\n$hint")
+            .setTitle("Here's where to go")
+            .setMessage("Fire TV doesn't let apps open its Settings page, so this one is a quick manual step.\n\n1. Press Home on your remote.\n2. Open the gear icon (Settings).\n3. Then go to:\n\n$hint")
             .setPositiveButton("OK", null)
             .show()
         return Result.NONE
