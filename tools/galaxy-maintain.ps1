@@ -101,7 +101,7 @@ param(
     [string]$Pair
 )
 
-$ScriptVersion = 'v0.13.0 (2026-11-08)'
+$ScriptVersion = 'v0.13.1 (2026-11-08)'
 Write-Host "galaxy-maintain $ScriptVersion" -ForegroundColor DarkGray
 $ErrorActionPreference = 'Continue'   # adb writes status text to stderr; don't treat that as an error
 $ListUrl = 'https://raw.githubusercontent.com/galaxystreamingservice-droid/galaxy-tv/main/app/src/main/assets/debloat_fireos.json'

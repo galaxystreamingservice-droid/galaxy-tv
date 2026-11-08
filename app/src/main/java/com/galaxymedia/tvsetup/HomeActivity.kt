@@ -160,7 +160,7 @@ class HomeActivity : AppCompatActivity() {
     private lateinit var saverClock: TextClock
     private lateinit var noticeBox: TextView
     private lateinit var liveView: TextView
-    private lateinit var greetingView: TextView
+    private lateinit var seasonGreeting: TextView
     private var tickerPages: List<CharSequence> = emptyList()
     private var tickerIdx = 0
     private val tickerRunnable = Runnable { showTickerPage() }
@@ -543,7 +543,7 @@ class HomeActivity : AppCompatActivity() {
         }
         center.addView(liveView)
         // The seasonal greeting shares the slot under the picture with the live-game bar: greeting when nothing is on, bar when a game is.
-        greetingView = TextView(this).apply {
+        seasonGreeting = TextView(this).apply {
             textSize = 30f * prefs.textScale
             setTypeface(null, Typeface.BOLD)
             letterSpacing = 0.08f
@@ -551,7 +551,7 @@ class HomeActivity : AppCompatActivity() {
             setPadding(0, dp(14), 0, 0)
             visibility = View.GONE
         }
-        center.addView(greetingView)
+        center.addView(seasonGreeting)
         hintView = TextView(this).apply {
             textSize = 16f * prefs.textScale
             setTextColor(mutedColor)
@@ -755,7 +755,7 @@ class HomeActivity : AppCompatActivity() {
         val busy = liveView.visibility == View.VISIBLE || tonightView.visibility == View.VISIBLE
         val wp = wallpaperNow()
         infoView.visibility = if (busy || wp == "logo" || Themes.isPicture(wp) || Themes.isSeason(wp)) View.GONE else View.VISIBLE
-        greetingView.visibility = if (Themes.isSeason(wp) && !busy && greetingView.text.isNotEmpty()) View.VISIBLE else View.GONE
+        seasonGreeting.visibility = if (Themes.isSeason(wp) && !busy && seasonGreeting.text.isNotEmpty()) View.VISIBLE else View.GONE
     }
 
     /** Seasonal backgrounds put the picture up top and the live bar (or the greeting) in the clear lane beneath it. */
@@ -770,16 +770,16 @@ class HomeActivity : AppCompatActivity() {
         }
         if (season) {
             val col = Seasons.accent(this, scene)
-            greetingView.text = Seasons.greeting(this, scene)
-            greetingView.setTextColor(col)
-            greetingView.setShadowLayer(dpf(12f), 0f, 0f, col)
+            seasonGreeting.text = Seasons.greeting(this, scene)
+            seasonGreeting.setTextColor(col)
+            seasonGreeting.setShadowLayer(dpf(12f), 0f, 0f, col)
             for (v in listOf(liveView, tonightView)) {
                 v.background = plate(col)
                 v.setPadding(dp(30), dp(12), dp(30), dp(12))
                 v.layoutParams = LinearLayout.LayoutParams(WRAP, WRAP).apply { topMargin = dp(10) }
             }
         } else {
-            greetingView.text = ""
+            seasonGreeting.text = ""
             for (v in listOf(liveView, tonightView)) {
                 v.background = null
                 v.setPadding(0, dp(14), 0, 0)
