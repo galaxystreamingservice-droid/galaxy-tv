@@ -1028,20 +1028,20 @@ class HomeActivity : AppCompatActivity() {
         return (avail / count.coerceAtLeast(1) - dp(16)).coerceIn(dp(96), dp(136))
     }
 
-    private class ShelfItem(val name: String, val pkg: String)
+    private class ShelfItem(val name: String, val pkg: String, val tag: String = "")
 
     /** The shelf: the apps in the settings file. WorldVPN is left off, because the VPN chip opens it. */
     private fun shelfItems(): List<ShelfItem> {
         val hidden = prefs.hiddenApps
         return (settings?.apps ?: emptyList())
             .filter { it.pinned && it.packageName !in hidden && it.packageName !in Vpn.packages }
-            .map { ShelfItem(it.name, it.packageName) }
+            .map { ShelfItem(it.name, it.packageName, it.tag) }
     }
 
     private fun rebuildShelf() {
         placeShelf()
         val items = shelfItems()
-        val sig = prefs.shelf + "#" + prefs.galaxyIcons + "#" + items.joinToString("|") { it.pkg + updater.isInstalled(it.pkg) }
+        val sig = prefs.shelf + "#" + prefs.galaxyIcons + "#" + items.joinToString("|") { it.pkg + it.tag + updater.isInstalled(it.pkg) }
         if (sig == shelfSignature && shelfRow.childCount > 0) return
         shelfSignature = sig
 
@@ -1054,7 +1054,7 @@ class HomeActivity : AppCompatActivity() {
                 (if (prefs.galaxyIcons) IconOverrides.get(this, a.pkg) else null)
                     ?: try { packageManager.getApplicationIcon(a.pkg) } catch (e: Exception) { null }
             } else null
-            val tile = makeTile(a.name, icon, a.name.take(1).uppercase(), a.pkg) {
+            val tile = makeTile(a.name, icon, a.name.take(1).uppercase(), a.pkg, a.tag) {
                 val i = packageManager.getLeanbackLaunchIntentForPackage(a.pkg)
                     ?: packageManager.getLaunchIntentForPackage(a.pkg)
                 if (i == null) Toast.makeText(this, "${a.name} isn't installed yet. Open Setup & updates.", Toast.LENGTH_LONG).show()
@@ -1077,7 +1077,7 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
-    private fun makeTile(label: String, icon: Drawable?, glyph: String, tag: String, onClick: () -> Unit): View {
+    private fun makeTile(label: String, icon: Drawable?, glyph: String, tag: String, note: String = "", onClick: () -> Unit): View {
         val box = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
@@ -1109,6 +1109,20 @@ class HomeActivity : AppCompatActivity() {
         )
         box.addView(lbl, LinearLayout.LayoutParams(MATCH, WRAP))
         labels += lbl to textColor
+        if (note.isNotEmpty() && prefs.shelf != "left") {
+            // A short note under the name (set in the settings file), such as "Best choice".
+            box.setPadding(dp(10), dp(6), dp(10), dp(6))
+            val nt = TextView(this).apply {
+                text = note
+                textSize = 11f * prefs.textScale
+                setTextColor(mutedColor)
+                gravity = Gravity.CENTER
+                maxLines = 1
+                ellipsize = TextUtils.TruncateAt.END
+            }
+            box.addView(nt, LinearLayout.LayoutParams(MATCH, WRAP))
+            labels += nt to mutedColor
+        }
         box.setOnClickListener { onClick() }
         style(box, 14f, labels)
         return box

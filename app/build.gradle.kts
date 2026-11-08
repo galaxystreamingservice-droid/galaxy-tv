@@ -11,8 +11,8 @@ android {
         applicationId = "com.galaxymedia.tvsetup"
         minSdk = 25 // Fire OS 6+ (Fire TV Stick 4K 1st gen and newer)
         targetSdk = 34
-        versionCode = 58
-        versionName = "0.13.2"
+        versionCode = 59
+        versionName = "0.13.3"
     }
 
     // One fixed signing key, so every build installs over the last one without an uninstall.

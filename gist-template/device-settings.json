@@ -11,8 +11,8 @@
   "notice": "",
 
   "apps": [
-    { "name": "TiviMate", "package": "ar.tvplayer.tv", "version": 1, "apkUrl": "REPLACE_WITH_YOUR_HOSTED_LINK", "autoUpdate": true, "pinned": true },
-    { "name": "XC7", "package": "com.haxapps.xc7", "version": 1, "apkUrl": "REPLACE_WITH_YOUR_HOSTED_LINK", "autoUpdate": true, "pinned": true },
+    { "name": "TiviMate", "tag": "Best choice", "package": "ar.tvplayer.tv", "version": 1, "apkUrl": "REPLACE_WITH_YOUR_HOSTED_LINK", "autoUpdate": true, "pinned": true },
+    { "name": "XC7", "tag": "Easy live TV", "package": "com.haxapps.xc7", "version": 1, "apkUrl": "REPLACE_WITH_YOUR_HOSTED_LINK", "autoUpdate": true, "pinned": true },
     { "name": "SmartTube", "package": "org.smarttube.stable", "version": 1, "apkUrl": "https://github.com/yuliskov/SmartTubeNext/releases/download/latest/smarttube_stable.apk", "autoUpdate": true, "pinned": true },
     { "name": "GalaxyTheater", "package": "fyahrebrands.moviebox.galaxytheater", "version": 1, "apkUrl": "REPLACE_WITH_YOUR_HOSTED_LINK", "autoUpdate": true, "pinned": true },
     { "name": "WorldVPN", "package": "io.world.vpn", "version": 0, "apkUrl": "", "autoUpdate": false, "pinned": false, "managedByStore": true }

@@ -10,7 +10,8 @@ data class AppEntry(
     val apkUrl: String,
     val autoUpdate: Boolean,
     val pinned: Boolean,
-    val managedByStore: Boolean
+    val managedByStore: Boolean,
+    val tag: String = ""   // optional short note shown under the name on the shelf, for example "Best choice"
 )
 
 data class BoxingEvent(val date: String, val title: String, val platform: String)
@@ -60,7 +61,8 @@ data class DeviceSettings(
                         apkUrl = a.optString("apkUrl", ""),
                         autoUpdate = a.optBoolean("autoUpdate", true),
                         pinned = a.optBoolean("pinned", true),
-                        managedByStore = a.optBoolean("managedByStore", false)
+                        managedByStore = a.optBoolean("managedByStore", false),
+                        tag = a.optString("tag", "")
                     )
                 }
             }

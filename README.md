@@ -35,6 +35,7 @@ version (own app id, pre-release only) for trying out making Galaxy Media the Ho
   The greeting ("HAPPY THANKSGIVING") shares the slot under the picture with the live-game bar. Calmer sports ticker on lower-end sticks (pages of 3 games, no scrolling).
 - **Galaxy-style shelf icons:** a picture named `<package>.webp` in `app/src/main/assets/icons` replaces that app's own icon on the shelf (TiviMate, XC7, SmartTube so far),
   matching the Galaxy Theater icon. Settings > App icons switches back to each app's own. Art script: `icons.py` in galaxy-seasonal-art.zip.
+- **Shelf notes:** an optional `"tag"` on an app in the settings file (for example `"tag": "Best choice"`) shows as a small note under the name on the shelf. No app update needed to change the wording.
 - **Screensaver:** `GalaxyDream` is a system screensaver showing today's picture, dimmed, with a slow-moving clock. Set it from the laptop with
   `.\galaxy-maintain.ps1 -Ip <ip> -Screensaver Galaxy` (undo with `-Screensaver Amazon`). `-RemoveAmazonSaver` also switches off Amazon's screensaver apps.
 - **Settings shortcuts:** every "Open settings" button goes through one safe opener (`SystemSettings`). Fire OS 8 answers the
