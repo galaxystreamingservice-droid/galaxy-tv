@@ -75,6 +75,18 @@
             android:exported="false"
             android:screenOrientation="landscape" />
 
+        <!-- Galaxy Media's own screensaver (set by the laptop script with -Screensaver Galaxy) -->
+        <service
+            android:name=".GalaxyDream"
+            android:exported="true"
+            android:label="Galaxy Media"
+            android:permission="android.permission.BIND_DREAM_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.dreams.DreamService" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </service>
+
         <receiver
             android:name=".BootReceiver"
             android:exported="true">

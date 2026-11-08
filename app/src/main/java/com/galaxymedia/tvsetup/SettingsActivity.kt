@@ -171,12 +171,14 @@ class SettingsActivity : AppCompatActivity() {
         val hideIdx = out.size
         out += Row("Hidden apps", if (prefs.hiddenApps.isEmpty()) "None" else "${prefs.hiddenApps.size} hidden", false) { pickHidden(hideIdx) }
         val bgIdx = out.size
-        out += Row("Background", Themes.wallpaperName(Themes.effective(prefs.wallpaper, Themes.liteFor(this, prefs.animations))), false) { pickBackground(bgIdx) }
-        out += Row("Screen edge", if (prefs.edge == "wide") "Wider" else "Normal", true) {
-            prefs.edge = if (prefs.edge == "wide") "normal" else "wide"
-        }
+        out += Row("Background", Themes.wallpaperName(Themes.resolve(prefs.wallpaper, Themes.liteFor(this, prefs.animations), prefs.rotateMin)), false) { pickBackground(bgIdx) }
         val lite = Themes.liteFor(this, prefs.animations)
-        val wp = Themes.effective(prefs.wallpaper, lite)
+        val wp = Themes.resolve(prefs.wallpaper, lite, prefs.rotateMin)
+        if (wp == "trace" || Themes.isPicture(wp)) {
+            out += Row("Screen edge", if (prefs.edge == "wide") "Wider" else "Normal", true) {
+                prefs.edge = if (prefs.edge == "wide") "normal" else "wide"
+            }
+        }
         if (wp == "rotate") {
             out += Row("Change every", "${prefs.rotateMin} min", true) {
                 val i = Themes.rotateOptions.indexOf(prefs.rotateMin)
@@ -188,7 +190,7 @@ class SettingsActivity : AppCompatActivity() {
                 prefs.beam = Themes.next(Themes.beamKeys, prefs.beam)
             }
         }
-        if (wp == "stars" || wp == "rotate" || (!lite && (wp == "trace" || wp == "aurora" || Themes.isPicture(wp)))) {
+        if (wp == "stars" || wp == "rotate" || (!lite && (wp == "trace" || wp == "aurora" || Themes.isPicture(wp) || Themes.isSeason(wp)))) {
             out += Row("Background motion", motionName(prefs.motion), true) {
                 prefs.motion = Themes.next(motionModes, prefs.motion)
             }

@@ -1,0 +1,639 @@
+{
+ "thanksgiving": {
+  "name": "Thanksgiving",
+  "greeting": "HAPPY THANKSGIVING",
+  "accent": "#FF9F2E",
+  "still": "thanksgiving_still.webp",
+  "base": "thanksgiving_base.webp",
+  "layers": [
+   {
+    "file": "thanksgiving_fan.webp",
+    "x": 537,
+    "y": 0,
+    "pivot": [
+     960,
+     430
+    ],
+    "sway": 3.0,
+    "period": 3.0
+   },
+   {
+    "file": "thanksgiving_body.webp",
+    "x": 749,
+    "y": 180
+   },
+   {
+    "file": "thanksgiving_head.webp",
+    "x": 1045,
+    "y": 160,
+    "pivot": [
+     1067.7407581819903,
+     262.09811811882366
+    ],
+    "bob": 6.0,
+    "tilt": 2.5,
+    "period": 2.0,
+    "phase": 0.6
+   }
+  ],
+  "emitters": [
+   {
+    "type": "twinkle",
+    "count": 60
+   },
+   {
+    "type": "fall",
+    "z": "back",
+    "sprite": "leaf",
+    "count": 26,
+    "speed": [
+     60,
+     130
+    ],
+    "sway": [
+     20,
+     70
+    ],
+    "size": [
+     0.7,
+     1.5
+    ],
+    "spin": [
+     -90,
+     90
+    ],
+    "tint": [
+     "#D65C16",
+     "#B0341C",
+     "#F0AA28",
+     "#8C4614"
+    ],
+    "alpha": 215
+   }
+  ]
+ },
+ "halloween": {
+  "name": "Halloween",
+  "greeting": "HAPPY HALLOWEEN",
+  "accent": "#FF8C1A",
+  "still": "halloween_still.webp",
+  "base": "halloween_base.webp",
+  "emitters": [
+   {
+    "type": "twinkle",
+    "count": 60
+   },
+   {
+    "type": "fly",
+    "sprite": "bat",
+    "count": 6,
+    "y": [
+     90,
+     480
+    ],
+    "speed": [
+     90,
+     170
+    ],
+    "size": [
+     0.8,
+     1.4
+    ],
+    "tint": [
+     "#0A0610"
+    ]
+   }
+  ]
+ },
+ "christmas": {
+  "name": "Christmas",
+  "greeting": "MERRY CHRISTMAS",
+  "accent": "#FF5A5A",
+  "still": "christmas_still.webp",
+  "base": "christmas_base.webp",
+  "emitters": [
+   {
+    "type": "twinkle",
+    "count": 60
+   },
+   {
+    "type": "fall",
+    "sprite": "snow",
+    "count": 46,
+    "speed": [
+     40,
+     95
+    ],
+    "sway": [
+     10,
+     40
+    ],
+    "size": [
+     0.6,
+     1.4
+    ],
+    "spin": [
+     -20,
+     20
+    ],
+    "tint": [
+     "#EBF5FF"
+    ],
+    "alpha": 210,
+    "avoid": [
+     560,
+     1360
+    ]
+   },
+   {
+    "type": "blink",
+    "sprite": "dot",
+    "size": 1.0,
+    "points": [
+     [
+      40,
+      94.6,
+      "#FF4646"
+     ],
+     [
+      136,
+      115.2,
+      "#FFD650"
+     ],
+     [
+      232,
+      128.2,
+      "#5AC8FF"
+     ],
+     [
+      328,
+      130.4,
+      "#6EE678"
+     ],
+     [
+      424,
+      121.3,
+      "#FF4646"
+     ],
+     [
+      520,
+      103.1,
+      "#FFD650"
+     ],
+     [
+      616,
+      80.4,
+      "#5AC8FF"
+     ],
+     [
+      712,
+      58.8,
+      "#6EE678"
+     ],
+     [
+      808,
+      43.8,
+      "#FF4646"
+     ],
+     [
+      904,
+      39.0,
+      "#FFD650"
+     ],
+     [
+      1000,
+      45.8,
+      "#5AC8FF"
+     ],
+     [
+      1096,
+      62.4,
+      "#6EE678"
+     ],
+     [
+      1192,
+      84.6,
+      "#FF4646"
+     ],
+     [
+      1288,
+      106.9,
+      "#FFD650"
+     ],
+     [
+      1384,
+      123.7,
+      "#5AC8FF"
+     ],
+     [
+      1480,
+      130.9,
+      "#6EE678"
+     ],
+     [
+      1576,
+      126.6,
+      "#FF4646"
+     ],
+     [
+      1672,
+      111.9,
+      "#FFD650"
+     ],
+     [
+      1768,
+      90.5,
+      "#5AC8FF"
+     ],
+     [
+      1864,
+      67.7,
+      "#6EE678"
+     ]
+    ],
+    "speed": 2.2
+   }
+  ]
+ },
+ "newyear": {
+  "name": "New Year",
+  "greeting": "HAPPY NEW YEAR",
+  "accent": "#FFD25A",
+  "still": "newyear_still.webp",
+  "base": "newyear_base.webp",
+  "emitters": [
+   {
+    "type": "twinkle",
+    "count": 60
+   },
+   {
+    "type": "burst",
+    "period": 3.6,
+    "items": [
+     [
+      380,
+      250,
+      150,
+      "#FFD25A"
+     ],
+     [
+      1560,
+      220,
+      170,
+      "#FF6EBE"
+     ],
+     [
+      1650,
+      560,
+      120,
+      "#6EDCFF"
+     ],
+     [
+      260,
+      590,
+      120,
+      "#FF8C5A"
+     ],
+     [
+      1180,
+      90,
+      90,
+      "#BEFFA0"
+     ]
+    ]
+   },
+   {
+    "type": "fall",
+    "sprite": "confetti",
+    "count": 70,
+    "speed": [
+     50,
+     120
+    ],
+    "sway": [
+     10,
+     40
+    ],
+    "size": [
+     0.6,
+     1.2
+    ],
+    "spin": [
+     -200,
+     200
+    ],
+    "tint": [
+     "#FFD25A",
+     "#FF6EBE",
+     "#6EDCFF",
+     "#BEFFA0"
+    ],
+    "alpha": 230,
+    "avoid": [
+     560,
+     1360
+    ]
+   }
+  ]
+ },
+ "valentines": {
+  "name": "Valentine's Day",
+  "greeting": "HAPPY VALENTINE'S DAY",
+  "accent": "#FF5C93",
+  "still": "valentines_still.webp",
+  "base": "valentines_base.webp",
+  "emitters": [
+   {
+    "type": "twinkle",
+    "count": 60
+   },
+   {
+    "type": "rise",
+    "sprite": "heart",
+    "count": 24,
+    "speed": [
+     30,
+     80
+    ],
+    "sway": [
+     12,
+     40
+    ],
+    "size": [
+     0.7,
+     1.6
+    ],
+    "spin": [
+     -12,
+     12
+    ],
+    "tint": [
+     "#FF6EA0",
+     "#FFA0BE",
+     "#E63264"
+    ],
+    "alpha": 210,
+    "avoid": [
+     560,
+     1360
+    ]
+   }
+  ]
+ },
+ "stpatricks": {
+  "name": "St. Patrick's Day",
+  "greeting": "HAPPY ST. PATRICK'S DAY",
+  "accent": "#46D26E",
+  "still": "stpatricks_still.webp",
+  "base": "stpatricks_base.webp",
+  "emitters": [
+   {
+    "type": "twinkle",
+    "count": 60
+   },
+   {
+    "type": "blink",
+    "sprite": "spark",
+    "size": 1.0,
+    "speed": 2.6,
+    "points": [
+     [
+      870,
+      690,
+      "#FFE082"
+     ],
+     [
+      960,
+      700,
+      "#FFFFFF"
+     ],
+     [
+      1050,
+      690,
+      "#FFE082"
+     ],
+     [
+      930,
+      672,
+      "#FFFFFF"
+     ],
+     [
+      1000,
+      680,
+      "#FFE082"
+     ],
+     [
+      1120,
+      254,
+      "#FFFFFF"
+     ],
+     [
+      760,
+      200,
+      "#FFE082"
+     ],
+     [
+      1200,
+      220,
+      "#FFFFFF"
+     ]
+    ]
+   }
+  ]
+ },
+ "easter": {
+  "name": "Easter",
+  "greeting": "HAPPY EASTER",
+  "accent": "#FF8CC8",
+  "still": "easter_still.webp",
+  "base": "easter_base.webp",
+  "emitters": [
+   {
+    "type": "twinkle",
+    "count": 60
+   },
+   {
+    "type": "bob",
+    "sprite": "egg",
+    "items": [
+     [
+      218,
+      1079,
+      33,
+      46,
+      "#FFF096"
+     ],
+     [
+      1348,
+      921,
+      35,
+      52,
+      "#BEFFBE"
+     ],
+     [
+      539,
+      457,
+      36,
+      49,
+      "#FFF096"
+     ],
+     [
+      738,
+      1057,
+      30,
+      43,
+      "#FFF096"
+     ],
+     [
+      337,
+      21,
+      28,
+      41,
+      "#FFF096"
+     ],
+     [
+      56,
+      170,
+      34,
+      44,
+      "#BEFFBE"
+     ],
+     [
+      826,
+      898,
+      29,
+      58,
+      "#FFAAD2"
+     ],
+     [
+      371,
+      193,
+      41,
+      54,
+      "#AADCFF"
+     ],
+     [
+      554,
+      926,
+      32,
+      53,
+      "#FFF096"
+     ],
+     [
+      209,
+      248,
+      28,
+      46,
+      "#FFF096"
+     ]
+    ]
+   },
+   {
+    "type": "fall",
+    "sprite": "petal",
+    "count": 18,
+    "speed": [
+     30,
+     70
+    ],
+    "sway": [
+     20,
+     60
+    ],
+    "size": [
+     0.7,
+     1.3
+    ],
+    "spin": [
+     -90,
+     90
+    ],
+    "tint": [
+     "#FFB4D2",
+     "#FFFFFF"
+    ],
+    "alpha": 200,
+    "avoid": [
+     560,
+     1360
+    ]
+   }
+  ]
+ },
+ "july4": {
+  "name": "Fourth of July",
+  "greeting": "HAPPY 4TH OF JULY",
+  "accent": "#FF5A64",
+  "still": "july4_still.webp",
+  "base": "july4_base.webp",
+  "emitters": [
+   {
+    "type": "twinkle",
+    "count": 60
+   },
+   {
+    "type": "burst",
+    "period": 3.4,
+    "items": [
+     [
+      360,
+      250,
+      150,
+      "#FF4650"
+     ],
+     [
+      1560,
+      230,
+      160,
+      "#6EA0FF"
+     ],
+     [
+      1650,
+      580,
+      110,
+      "#FFFFFF"
+     ],
+     [
+      270,
+      580,
+      110,
+      "#6EA0FF"
+     ],
+     [
+      1180,
+      90,
+      90,
+      "#FF5A5A"
+     ]
+    ]
+   }
+  ]
+ },
+ "galaxy": {
+  "name": "Galaxy",
+  "greeting": "GALAXY MEDIA",
+  "accent": "#22D3EE",
+  "still": "galaxy_still.webp",
+  "base": "galaxy_base.webp",
+  "emitters": [
+   {
+    "type": "twinkle",
+    "count": 90
+   },
+   {
+    "type": "orbit",
+    "cx": 960,
+    "cy": 410,
+    "rx": 360,
+    "ry": 90,
+    "period": 18.0,
+    "size": 26,
+    "tint": "#A78BFA"
+   },
+   {
+    "type": "streak",
+    "period": 11.0
+   }
+  ]
+ }
+}

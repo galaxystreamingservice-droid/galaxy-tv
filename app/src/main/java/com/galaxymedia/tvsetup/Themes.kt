@@ -59,9 +59,13 @@ object Themes {
     /** Backgrounds with a moving light or heavy animation. Hidden on lower-end sticks. */
     private val heavyKeys = listOf("trace", "aurora")
 
-    private val allWallpapers = listOf("rotate", "stars") + pictureKeys + listOf(
-        "trace", "aurora", "nebula", "sunset", "ocean", "city", "grid", "mountains", "logo", "plain"
-    )
+    /** The seasonal pictures: "season" follows the calendar, "galaxy_g" is always the plain Galaxy picture. */
+    val seasonKeys = listOf("season", "galaxy_g")
+
+    fun isSeason(key: String): Boolean = key in seasonKeys
+
+    /** The backgrounds on offer: Seasonal (auto), two that move (Starfield, Aurora) and two that stay still (Nebula, Galaxy G). */
+    private val allWallpapers = listOf("season", "galaxy_g", "stars", "aurora", "nebula")
 
     /** What actually shows: lower-end sticks get the starfield in place of the heavy ones. */
     fun effective(key: String, lite: Boolean): String = if (lite && key in heavyKeys) "stars" else key
@@ -78,17 +82,18 @@ object Themes {
     val sceneKeys = listOf("nebula", "sunset", "ocean", "city", "grid", "mountains")
 
     fun resolve(key: String, lite: Boolean, minutes: Int, skip: Set<String> = emptySet()): String {
-        if (key != "rotate") return effective(key, lite)
-        val pool = rotatePool(lite).filter { it !in skip }.ifEmpty { listOf("stars") }
-        val slot = (System.currentTimeMillis() / (minutes.coerceAtLeast(1) * 60_000L)).toInt()
-        return pool[Math.floorMod(slot, pool.size)]
+        // The old Rotate and the retired backgrounds now show as Seasonal.
+        val k = if (key in allWallpapers) key else "season"
+        return effective(k, lite)
     }
 
     fun wallpapersFor(lite: Boolean): List<String> = if (lite) allWallpapers.filter { it !in heavyKeys } else allWallpapers
 
     /** Anything not listed (including removed wallpapers) shows as the starfield. */
     fun wallpaperName(key: String): String = when (key) {
-        "rotate" -> "Rotate (changes by itself)"
+        "season" -> "Seasonal (changes with the holidays)"
+        "galaxy_g" -> "Galaxy G"
+        "rotate" -> "Seasonal (changes with the holidays)"
         "pic_tv_ring" -> "TV in ring"
         "pic_shield" -> "Neon shield"
         "pic_swirl_ring" -> "Swirl ring"

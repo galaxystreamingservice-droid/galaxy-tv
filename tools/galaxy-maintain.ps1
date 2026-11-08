@@ -9,6 +9,8 @@ A bare run (no switches) on a Fire TV does: report, debloat, trim caches, auto-s
   .\galaxy-maintain.ps1 -Ip 192.168.1.172 -Speed Fast  animations at 0.5x (Off, Fast, Default)
   .\galaxy-maintain.ps1 -Ip 192.168.1.172 -AutoStart   let Galaxy Media open itself after a restart
   .\galaxy-maintain.ps1 -Ip 192.168.1.172 -Reboot      reboot the stick at the end
+  .\galaxy-maintain.ps1 -Ip 192.168.1.172 -Screensaver Galaxy   use Galaxy Media's seasonal picture as the screensaver (-Screensaver Amazon puts it back)
+  .\galaxy-maintain.ps1 -Ip 192.168.1.172 -RemoveAmazonSaver    also switch off Amazon's screensaver apps (undo: -Screensaver Amazon)
 
 Measure and test (use 3 runs and compare, one reading proves little):
   .\galaxy-maintain.ps1 -Ip 192.168.1.172 -Audit      read-only: memory, heat, Wi-Fi, storage, frames, what is switched off
@@ -63,6 +65,8 @@ param(
     [switch]$Trim,
     [switch]$AutoStart,
     [ValidateSet('', 'Off', 'Fast', 'Default')][string]$Speed = '',
+    [ValidateSet('', 'Galaxy', 'Amazon')][string]$Screensaver = '',
+    [switch]$RemoveAmazonSaver,
     [switch]$Alexa,
     [switch]$Ota,
     [switch]$DryRun,
@@ -97,13 +101,13 @@ param(
     [string]$Pair
 )
 
-$ScriptVersion = 'v0.12.14 (2026-11-08)'
+$ScriptVersion = 'v0.13.0 (2026-11-08)'
 Write-Host "galaxy-maintain $ScriptVersion" -ForegroundColor DarkGray
 $ErrorActionPreference = 'Continue'   # adb writes status text to stderr; don't treat that as an error
 $ListUrl = 'https://raw.githubusercontent.com/galaxystreamingservice-droid/galaxy-tv/main/app/src/main/assets/debloat_fireos.json'
 
 # No action chosen = the safe default set.
-$anyAction = ($Report -or $Debloat -or $Trim -or $AutoStart -or [bool]$Speed -or $Reboot -or $HomeCheck -or $HomeLock -or $HomeUndo -or $Verify -or $Screenshot -or $Audit -or $Benchmark -or $Undebloat -or $Dump -or $InstallApps -or $Cycle -or $Summarize -or $RemoveApps -or $Setup -or $Record -or $HomeProbe -or $HomeTest -or $InstallHomeTest)
+$anyAction = ($Report -or $Debloat -or $Trim -or $AutoStart -or [bool]$Speed -or [bool]$Screensaver -or $RemoveAmazonSaver -or $Reboot -or $HomeCheck -or $HomeLock -or $HomeUndo -or $Verify -or $Screenshot -or $Audit -or $Benchmark -or $Undebloat -or $Dump -or $InstallApps -or $Cycle -or $Summarize -or $RemoveApps -or $Setup -or $Record -or $HomeProbe -or $HomeTest -or $InstallHomeTest)
 $defaultRun = $false
 if (-not $anyAction -and -not $Pair) {
     $Report = $true; $Debloat = $true; $Trim = $true; $AutoStart = $true; $defaultRun = $true
@@ -909,6 +913,50 @@ if ($RemoveApps) {
             } else { Say '  Skipped by you. Nothing was removed.' }
         }
     }
+}
+
+# ---- 6. screensaver: Galaxy Media's own picture instead of Amazon's ----
+$SaverComp = 'com.galaxymedia.tvsetup/com.galaxymedia.tvsetup.GalaxyDream'
+$AmazonSavers = @('com.amazon.ftv.screensaver', 'com.amazon.bueller.photos')
+$SaverBackup = Join-Path $PSScriptRoot ('reports\screensaver-backup-' + ($Ip -replace '\.', '-') + '.txt')
+if ($Screensaver -eq 'Galaxy') {
+    Write-Host '=== SCREENSAVER: Galaxy Media ===' -ForegroundColor Cyan
+    $curSaver = (Sh 'settings get secure screensaver_components') -join ''
+    Say "  Screensaver now: $curSaver"
+    if ($curSaver -and $curSaver -ne 'null' -and $curSaver -ne $SaverComp -and -not (Test-Path $SaverBackup)) {
+        New-Item -ItemType Directory -Force -Path (Split-Path $SaverBackup) | Out-Null
+        Set-Content -Path $SaverBackup -Value $curSaver
+        Say "  Saved the old value so -Screensaver Amazon can put it back."
+    }
+    Sh "settings put secure screensaver_components $SaverComp" | Out-Null
+    Sh 'settings put secure screensaver_enabled 1' | Out-Null
+    $nowSaver = (Sh 'settings get secure screensaver_components') -join ''
+    Chk ($nowSaver -eq $SaverComp) "Screensaver is set to Galaxy Media ($nowSaver)"
+    Say '  To check: Settings > Display & Sounds > Screensaver > Start now (or wait for the idle time).' 'Yellow'
+    $changed = $true
+}
+if ($Screensaver -eq 'Amazon') {
+    Write-Host '=== SCREENSAVER: back to Amazon ===' -ForegroundColor Cyan
+    foreach ($pk in $AmazonSavers) { Sh "pm enable $pk" | Out-Null }
+    if (Test-Path $SaverBackup) {
+        $prevSaver = (Get-Content $SaverBackup -Raw).Trim()
+        Sh "settings put secure screensaver_components $prevSaver" | Out-Null
+        Say "  Screensaver set back to $prevSaver."
+    } else {
+        Sh 'settings delete secure screensaver_components' | Out-Null
+        Say '  No saved value, so the stick default was restored.'
+    }
+    $changed = $true
+}
+if ($RemoveAmazonSaver) {
+    Write-Host '=== AMAZON SCREENSAVER APPS: switch off (reversible) ===' -ForegroundColor Cyan
+    foreach ($pk in $AmazonSavers) {
+        $r = (Sh "pm disable-user --user 0 $pk") -join ' '
+        Chk ($r -match 'disabled') "Switched off: $pk" 'WARN'
+        if ($r -notmatch 'disabled') { Say "    $r" 'Yellow' }
+    }
+    Say '  Tip: run -Audit afterwards to see how much memory came back.'
+    $changed = $true
 }
 
 # ---- stamp + save ----

@@ -30,7 +30,7 @@ class Prefs(ctx: Context) {
         set(v) = sp.edit().putString("accent", v).apply()
 
     var wallpaper: String
-        get() = sp.getString("wallpaper", "rotate") ?: "rotate"
+        get() = sp.getString("wallpaper", "season") ?: "season"
         set(v) = sp.edit().putString("wallpaper", v).apply()
 
     /** Minutes between changes when the background is "rotate". */
@@ -171,7 +171,7 @@ class Prefs(ctx: Context) {
 
     /** Starfield motion: "off" (still), "reduced" (slow, subtle twinkle) or "normal". */
     var motion: String
-        get() = sp.getString("motion", "off") ?: "off"
+        get() = sp.getString("motion", "normal") ?: "normal"
         set(v) = sp.edit().putString("motion", v).apply()
 
     /** Idle screensaver (a slow-moving clock) after about 5 minutes with no key press. */

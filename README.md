@@ -27,6 +27,13 @@ version (own app id, pre-release only) for trying out making Galaxy Media the Ho
   running along the neon outline, Frame trace, Aurora drift, drawn scenes, the Galaxy Media logo and Plain
   dark. Lower-end sticks skip the animated ones. Each moving background is measured on the stick and Rotate
   skips any that draw too slowly.
+- **Seasonal backgrounds (v0.13.0):** the default background is "Seasonal", which follows the calendar: Halloween, Thanksgiving, Christmas,
+  New Year, Valentine's, St. Patrick's, Easter, July 4th, and a plain Galaxy G the rest of the year. Each scene is a still picture plus a short list
+  of moving pieces in `app/src/main/assets/seasons/seasons.json`, drawn by `SeasonView`. Lower-end sticks (and "Animations: Off") get the still picture.
+  The smoothness monitor drops a scene back to the still if it runs rough on that stick. The other backgrounds are Galaxy G, Starfield, Aurora and Nebula.
+  The greeting ("HAPPY THANKSGIVING") shares the slot under the picture with the live-game bar. Calmer sports ticker on lower-end sticks (pages of 3 games, no scrolling).
+- **Screensaver:** `GalaxyDream` is a system screensaver showing today's picture, dimmed, with a slow-moving clock. Set it from the laptop with
+  `.\galaxy-maintain.ps1 -Ip <ip> -Screensaver Galaxy` (undo with `-Screensaver Amazon`). `-RemoveAmazonSaver` also switches off Amazon's screensaver apps.
 - **Settings shortcuts:** every "Open settings" button goes through one safe opener (`SystemSettings`). Fire OS 8 answers the
   generic settings request with a placeholder (`CTSDummySettingsHandler`) that sends the person to the home screen, so the app
   skips placeholders, tries the exact screen, then the main Settings page, and otherwise shows the steps in words.

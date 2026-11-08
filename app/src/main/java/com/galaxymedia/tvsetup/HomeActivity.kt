@@ -138,7 +138,20 @@ class HomeActivity : AppCompatActivity() {
     private fun wallpaperNow(): String = Themes.resolve(prefs.wallpaper, lite, prefs.rotateMin, prefs.heavyBackgrounds())
 
     /** Pictures stay still on lower-end sticks. */
-    private fun motionNow(): String = if (prefs.animations == "off" || (lite && Themes.isPicture(wallpaperNow()))) "off" else prefs.motion
+    private fun motionNow(): String {
+        val wp = wallpaperNow()
+        if (prefs.animations == "off") return "off"
+        if (lite && (Themes.isPicture(wp) || Themes.isSeason(wp))) return "off"
+        if (Themes.isSeason(wp) && wp in prefs.heavyBackgrounds()) return "off"   // measured rough on this stick: show the still
+        return prefs.motion
+    }
+
+    /** The scene behind the Seasonal and Galaxy G backgrounds ("" for every other background). */
+    private fun sceneNow(): String = when (wallpaperNow()) {
+        "season" -> Seasons.sceneFor(java.util.Calendar.getInstance())
+        "galaxy_g" -> "galaxy"
+        else -> ""
+    }
     private lateinit var tonightView: TextView
     private lateinit var sportsBox: LinearLayout
     private lateinit var sportsText: TextView
@@ -147,6 +160,10 @@ class HomeActivity : AppCompatActivity() {
     private lateinit var saverClock: TextClock
     private lateinit var noticeBox: TextView
     private lateinit var liveView: TextView
+    private lateinit var greetingView: TextView
+    private var tickerPages: List<CharSequence> = emptyList()
+    private var tickerIdx = 0
+    private val tickerRunnable = Runnable { showTickerPage() }
     private var saverOn = false
     private var weatherBusy = false
     private var sportsSignature = ""
@@ -249,6 +266,7 @@ class HomeActivity : AppCompatActivity() {
         refreshFromNetwork()
         refreshSports()
         refreshWeather()
+        if (stillTicker() && tickerPages.size > 1) showTickerPage()
         // Coming back after using another app: close the other apps' background processes.
         if (pausedAt > 0L && SystemClock.elapsedRealtime() - pausedAt > 1500L && AppCloser.enabled(this, prefs.closeApps)) {
             handler.postDelayed({ AppCloser.closeOthers(this) }, 1500)
@@ -262,6 +280,7 @@ class HomeActivity : AppCompatActivity() {
         handler.removeCallbacks(tick)
         handler.removeCallbacks(quietRunnable)
         handler.removeCallbacks(saverRunnable)
+        handler.removeCallbacks(tickerRunnable)
         hideSaver(true)
     }
 
@@ -523,6 +542,16 @@ class HomeActivity : AppCompatActivity() {
             visibility = View.GONE
         }
         center.addView(liveView)
+        // The seasonal greeting shares the slot under the picture with the live-game bar: greeting when nothing is on, bar when a game is.
+        greetingView = TextView(this).apply {
+            textSize = 30f * prefs.textScale
+            setTypeface(null, Typeface.BOLD)
+            letterSpacing = 0.08f
+            gravity = Gravity.CENTER
+            setPadding(0, dp(14), 0, 0)
+            visibility = View.GONE
+        }
+        center.addView(greetingView)
         hintView = TextView(this).apply {
             textSize = 16f * prefs.textScale
             setTextColor(mutedColor)
@@ -587,6 +616,10 @@ class HomeActivity : AppCompatActivity() {
             visibility = View.GONE
             isFocusable = false
             isClickable = false
+        }
+        if (Themes.isSeason(wallpaperNow())) {
+            saverLayer.addView(SeasonView(this, sceneNow(), "off"), FrameLayout.LayoutParams(MATCH, MATCH))
+            saverLayer.addView(View(this).apply { setBackgroundColor(Color.argb(165, 0, 0, 0)) }, FrameLayout.LayoutParams(MATCH, MATCH))
         }
         saverClock = TextClock(this).apply {
             format12Hour = "h:mm"
@@ -660,8 +693,37 @@ class HomeActivity : AppCompatActivity() {
         val sig = mode + "#" + shown.joinToString("|") { it.league + it.text }
         if (sig == sportsSignature && sportsBox.visibility == View.VISIBLE) return
         sportsSignature = sig
+        if (stillTicker()) {
+            // Lower-end sticks and "Animations: Off": no constant scrolling. Show a few games at a time instead.
+            tickerPages = shown.take(40).chunked(3).map { spanFor(it) }
+            tickerIdx = 0
+            sportsText.ellipsize = TextUtils.TruncateAt.END
+            sportsText.isSelected = false
+            showTickerPage()
+        } else {
+            handler.removeCallbacks(tickerRunnable)
+            tickerPages = emptyList()
+            sportsText.ellipsize = TextUtils.TruncateAt.MARQUEE
+            sportsText.text = spanFor(shown.take(40))
+            sportsText.isSelected = false
+            sportsText.isSelected = true
+        }
+        sportsBox.visibility = View.VISIBLE
+    }
+
+    private fun stillTicker(): Boolean = lite || prefs.animations == "off"
+
+    private fun showTickerPage() {
+        handler.removeCallbacks(tickerRunnable)
+        if (tickerPages.isEmpty()) return
+        sportsText.text = tickerPages[tickerIdx % tickerPages.size]
+        tickerIdx++
+        if (tickerPages.size > 1) handler.postDelayed(tickerRunnable, 7000)
+    }
+
+    private fun spanFor(games: List<Game>): SpannableStringBuilder {
         val sb = SpannableStringBuilder()
-        for (g in shown.take(40)) {
+        for (g in games) {
             if (g.state == "in") {
                 val s = sb.length
                 sb.append("● ")
@@ -672,10 +734,7 @@ class HomeActivity : AppCompatActivity() {
             sb.setSpan(ForegroundColorSpan(accent), s2, s2 + g.league.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
             sb.append(g.text).append(" ")
         }
-        sportsText.text = sb
-        sportsText.isSelected = false
-        sportsText.isSelected = true
-        sportsBox.visibility = View.VISIBLE
+        return sb
     }
 
     /** Tells the picture wallpaper where the clear space is (between the top bar and the live-game banner). */
@@ -694,7 +753,39 @@ class HomeActivity : AppCompatActivity() {
     /** The date/weather line only shows when the live-game and tonight lines are not using that space. */
     private fun syncInfo() {
         val busy = liveView.visibility == View.VISIBLE || tonightView.visibility == View.VISIBLE
-        infoView.visibility = if (busy || wallpaperNow() == "logo" || Themes.isPicture(wallpaperNow())) View.GONE else View.VISIBLE
+        val wp = wallpaperNow()
+        infoView.visibility = if (busy || wp == "logo" || Themes.isPicture(wp) || Themes.isSeason(wp)) View.GONE else View.VISIBLE
+        greetingView.visibility = if (Themes.isSeason(wp) && !busy && greetingView.text.isNotEmpty()) View.VISIBLE else View.GONE
+    }
+
+    /** Seasonal backgrounds put the picture up top and the live bar (or the greeting) in the clear lane beneath it. */
+    private fun styleLane(scene: String) {
+        val season = scene.isNotEmpty()
+        centerBox.gravity = if (season) Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL else Gravity.CENTER
+        fun plate(col: Int) = GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = dpf(40f)
+            setColor(Color.parseColor("#E60E0A12"))
+            setStroke(dp(2), col)
+        }
+        if (season) {
+            val col = Seasons.accent(this, scene)
+            greetingView.text = Seasons.greeting(this, scene)
+            greetingView.setTextColor(col)
+            greetingView.setShadowLayer(dpf(12f), 0f, 0f, col)
+            for (v in listOf(liveView, tonightView)) {
+                v.background = plate(col)
+                v.setPadding(dp(30), dp(12), dp(30), dp(12))
+                v.layoutParams = LinearLayout.LayoutParams(WRAP, WRAP).apply { topMargin = dp(10) }
+            }
+        } else {
+            greetingView.text = ""
+            for (v in listOf(liveView, tonightView)) {
+                v.background = null
+                v.setPadding(0, dp(14), 0, 0)
+                v.layoutParams = LinearLayout.LayoutParams(MATCH, WRAP)
+            }
+        }
     }
 
     /** "LIVE Cowboys 14, Giants 7 · Q2 5:20" for one of my teams. Display only. */
@@ -738,7 +829,7 @@ class HomeActivity : AppCompatActivity() {
             sportsSignature = ""
         }
         applyContentPadding()
-        val bgKey = wallpaperNow() + ":" + motionNow() + ":" + prefs.accent + ":" + prefs.edge + ":" + prefs.beam
+        val bgKey = wallpaperNow() + ":" + sceneNow() + ":" + motionNow() + ":" + prefs.accent + ":" + prefs.edge + ":" + prefs.beam
         if (appliedBackground != bgKey) {
             appliedBackground = bgKey
             bgHolder.removeAllViews()
@@ -750,6 +841,7 @@ class HomeActivity : AppCompatActivity() {
                 }
                 "trace" -> LightTraceView(this, motionNow(), accent, Themes.beamColor(prefs.beam), if (prefs.edge == "wide") 42f else 18f)
                 "nebula", "sunset", "ocean", "city", "grid", "mountains" -> SceneView(this, wp, accent)
+                "season", "galaxy_g" -> SeasonView(this, sceneNow(), motionNow())
                 in Themes.pictureKeys -> PictureTraceView(this, wp, motionNow(), Themes.beamColor(prefs.beam))
                 "aurora" -> AuroraView(this, motionNow())
                 "plain" -> null
@@ -764,7 +856,8 @@ class HomeActivity : AppCompatActivity() {
             }
             bgShownOnce = true
             startMeasure(wp, motionNow())
-            centerTitle.visibility = if (wp == "logo" || Themes.isPicture(wp)) View.GONE else View.VISIBLE
+            centerTitle.visibility = if (wp == "logo" || Themes.isPicture(wp) || Themes.isSeason(wp)) View.GONE else View.VISIBLE
+            styleLane(sceneNow())
             syncInfo()
         }
     }
