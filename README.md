@@ -27,6 +27,9 @@ version (own app id, pre-release only) for trying out making Galaxy Media the Ho
   running along the neon outline, Frame trace, Aurora drift, drawn scenes, the Galaxy Media logo and Plain
   dark. Lower-end sticks skip the animated ones. Each moving background is measured on the stick and Rotate
   skips any that draw too slowly.
+- **Settings shortcuts:** every "Open settings" button goes through one safe opener (`SystemSettings`). Fire OS 8 answers the
+  generic settings request with a placeholder (`CTSDummySettingsHandler`) that sends the person to the home screen, so the app
+  skips placeholders, tries the exact screen, then the main Settings page, and otherwise shows the steps in words.
 - **Gear menu:** All apps (hold OK on an app to remove it), Stick health (Wi-Fi, speed test, memory, heat, restarts,
   which backgrounds are smooth), Pay / Renew, Fire TV settings, Settings, Setup & updates, Help.
 - **Setup and updates:** the "Install / update apps" button downloads every app first, then opens the install prompts one after another, and

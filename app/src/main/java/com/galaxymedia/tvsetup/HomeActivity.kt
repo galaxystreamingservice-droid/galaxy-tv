@@ -1112,7 +1112,7 @@ class HomeActivity : AppCompatActivity() {
         AlertDialog.Builder(this)
             .setTitle("Restart for best speed")
             .setMessage("This stick has been on for ${upHours / 24} days. A restart clears memory and keeps apps smooth. Go to Fire TV Settings, My Fire TV, Restart, or unplug it for 10 seconds.")
-            .setPositiveButton("Open settings") { _, _ -> openFireSettings() }
+            .setPositiveButton("Open settings") { _, _ -> openFireSettings("Settings › My Fire TV › Restart") }
             .setNegativeButton("Not now") { _, _ ->
                 prefs.restartSnoozeUntil = System.currentTimeMillis() + 24L * 3600 * 1000
                 rebuildChips()
@@ -1121,12 +1121,8 @@ class HomeActivity : AppCompatActivity() {
     }
 
     /** The stick's own settings (Wi-Fi, display, restart). Always reachable from the gear menu. */
-    private fun openFireSettings() {
-        try {
-            startActivity(Intent(android.provider.Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-        } catch (e: Exception) {
-            Toast.makeText(this, "Couldn't open the settings.", Toast.LENGTH_LONG).show()
-        }
+    private fun openFireSettings(hint: String = "Settings") {
+        SystemSettings.open(this, SystemSettings.Target.MAIN, null, hint)
     }
 
     private fun showMenu() {

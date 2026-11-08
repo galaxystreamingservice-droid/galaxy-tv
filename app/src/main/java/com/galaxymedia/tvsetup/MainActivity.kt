@@ -61,10 +61,10 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.btnSelf).setOnClickListener { selfUpdate() }
         findViewById<Button>(R.id.btnDiag).setOnClickListener { showDiagnostics() }
         findViewById<Button>(R.id.btnUrl).setOnClickListener { askForSettingsUrl() }
-        findViewById<Button>(R.id.btnWifi).setOnClickListener { openSystem(Settings.ACTION_WIFI_SETTINGS) }
+        findViewById<Button>(R.id.btnWifi).setOnClickListener { SystemSettings.open(this, SystemSettings.Target.WIFI, null, "Settings › Network") }
         findViewById<Button>(R.id.btnSystem).setOnClickListener {
             log("Factory reset: My Fire TV → Reset to Factory Defaults.")
-            openSystem(Settings.ACTION_SETTINGS)
+            SystemSettings.open(this, SystemSettings.Target.MAIN, null, "Settings › My Fire TV › Reset to Factory Defaults")
         }
 
         styleButtons()
@@ -257,24 +257,10 @@ class MainActivity : AppCompatActivity() {
             .setTitle("Allow installs")
             .setMessage("Turn ON 'Install unknown apps' for Galaxy Media on the next screen, then come back and press Install / update apps.")
             .setPositiveButton("Open") { _, _ ->
-                try {
-                    startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName")))
-                } catch (e: ActivityNotFoundException) {
-                    log("Could not open that screen. Go to Settings → My Fire TV → Developer Options → Install unknown apps.")
-                    openSystem(Settings.ACTION_SETTINGS)
-                }
+                SystemSettings.open(this, SystemSettings.Target.UNKNOWN_SOURCES, packageName, "Settings › My Fire TV › Developer options › Install unknown apps")
             }
             .setNegativeButton("Cancel", null)
             .show()
-    }
-
-    private fun openSystem(action: String) {
-        try {
-            startActivity(Intent(action))
-        } catch (e: ActivityNotFoundException) {
-            try { startActivity(Intent(Settings.ACTION_SETTINGS)) }
-            catch (e2: ActivityNotFoundException) { log("Could not open system settings on this build.") }
-        }
     }
 
     private fun askForSettingsUrl() {

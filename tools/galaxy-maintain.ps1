@@ -97,7 +97,7 @@ param(
     [string]$Pair
 )
 
-$ScriptVersion = 'v0.12.11 (2026-11-04)'
+$ScriptVersion = 'v0.12.12 (2026-11-08)'
 Write-Host "galaxy-maintain $ScriptVersion" -ForegroundColor DarkGray
 $ErrorActionPreference = 'Continue'   # adb writes status text to stderr; don't treat that as an error
 $ListUrl = 'https://raw.githubusercontent.com/galaxystreamingservice-droid/galaxy-tv/main/app/src/main/assets/debloat_fireos.json'
@@ -589,6 +589,8 @@ if ($Verify) {
     $stOk = [bool]($st -and $st -ne 'null')
     Chk $stOk ('Maintenance stamp: ' + $(if ($stOk) { $st } else { 'none yet' })) 'WARN'
     Chk ($disabled -notcontains $AmazonHome) "Amazon's home screen is on (normal setup: the Home button goes to Amazon)" 'WARN'
+    $resGen = (Sh 'cmd package resolve-activity --brief -a android.settings.SETTINGS') -join ' '
+    Chk ($resGen -notmatch 'Dummy|CTS|compliance') 'Generic Settings shortcut opens a real screen (Galaxy Media uses its own safe fallback either way)' 'WARN'
     $crash = @(Sh 'logcat -d -b crash' | Where-Object { $_ -match 'com\.galaxymedia' })
     Chk ($crash.Count -eq 0) ($(if ($crash.Count -eq 0) { 'No Galaxy Media crashes in the log' } else { "$($crash.Count) crash lines for Galaxy Media. Send me the log." }))
     # The app's own saved settings (private link and settings text are never printed)

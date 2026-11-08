@@ -233,20 +233,11 @@ class HelpActivity : AppCompatActivity() {
     }
 
     private fun runAction(a: String) {
-        val i = when (a) {
-            "wifi" -> Intent(Settings.ACTION_WIFI_SETTINGS)
-            "apps" -> Intent(Settings.ACTION_MANAGE_APPLICATIONS_SETTINGS)
-            "setup" -> Intent(this, MainActivity::class.java)
-            else -> Intent(Settings.ACTION_SETTINGS)
-        }
-        try {
-            startActivity(i)
-        } catch (e: Exception) {
-            try {
-                startActivity(Intent(Settings.ACTION_SETTINGS))
-            } catch (e2: Exception) {
-                Toast.makeText(this, "Press Home, then open Settings (the gear) on the Fire TV home screen.", Toast.LENGTH_LONG).show()
-            }
+        when (a) {
+            "wifi" -> SystemSettings.open(this, SystemSettings.Target.WIFI, null, "Settings › Network")
+            "apps" -> SystemSettings.open(this, SystemSettings.Target.APPS, null, "Settings › Applications › Manage Installed Applications")
+            "setup" -> startActivity(Intent(this, MainActivity::class.java))
+            else -> SystemSettings.open(this, SystemSettings.Target.MAIN, null, "Settings")
         }
     }
 

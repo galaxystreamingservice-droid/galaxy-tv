@@ -230,7 +230,7 @@ class CleanupActivity : AppCompatActivity() {
             if (focusTarget == null) focusTarget = b
         }
         val open = if (s.kind == "cache") button("Open apps list") { openApplicationsList() }
-                   else button("Open Fire TV Settings") { openSettings(Intent(Settings.ACTION_SETTINGS)) }
+                   else button("Open Settings") { SystemSettings.open(this, SystemSettings.Target.MAIN, null, s.path) }
         buttons.addView(open, buttonParams())
         if (focusTarget == null) focusTarget = open
         if (step > 0) buttons.addView(button("Back") { step--; render() }, buttonParams())
@@ -249,24 +249,12 @@ class CleanupActivity : AppCompatActivity() {
 
     // ───────────────────────── actions ─────────────────────────
 
-    private fun openSettings(i: Intent) {
-        try {
-            startActivity(i)
-        } catch (e: Exception) {
-            try {
-                startActivity(Intent(Settings.ACTION_SETTINGS))
-            } catch (e2: Exception) {
-                Toast.makeText(this, "Press Home, then open Settings (the gear) on the Fire TV home screen.", Toast.LENGTH_LONG).show()
-            }
-        }
-    }
-
     private fun openAppInfo(pkg: String) {
-        openSettings(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply { data = Uri.parse("package:$pkg") })
+        SystemSettings.open(this, SystemSettings.Target.APP_INFO, pkg, "Settings › Applications › Manage Installed Applications › the app › Clear cache")
     }
 
     private fun openApplicationsList() {
-        openSettings(Intent(Settings.ACTION_MANAGE_APPLICATIONS_SETTINGS))
+        SystemSettings.open(this, SystemSettings.Target.APPS, null, "Settings › Applications › Manage Installed Applications")
     }
 
     private fun finishCleanup() {
