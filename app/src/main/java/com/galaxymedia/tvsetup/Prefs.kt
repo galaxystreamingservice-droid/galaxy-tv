@@ -170,6 +170,16 @@ class Prefs(ctx: Context) {
         set(v) = sp.edit().putInt("nightStart", v).apply()
 
     /** Starfield motion: "off" (still), "reduced" (slow, subtle twinkle) or "normal". */
+    /** A season picked in Settings so it can be looked at today. It goes back to the real date after 30 minutes. */
+    var previewScene: String
+        get() = if (System.currentTimeMillis() > sp.getLong("previewUntil", 0L)) "" else (sp.getString("previewScene", "") ?: "")
+        set(v) = sp.edit().putString("previewScene", v).putLong("previewUntil", System.currentTimeMillis() + 30L * 60_000L).apply()
+
+    /** Shelf icons in the Galaxy style (on) or each app's own icon (off). */
+    var galaxyIcons: Boolean
+        get() = sp.getBoolean("galaxyIcons", true)
+        set(v) = sp.edit().putBoolean("galaxyIcons", v).apply()
+
     var motion: String
         get() = sp.getString("motion", "normal") ?: "normal"
         set(v) = sp.edit().putString("motion", v).apply()

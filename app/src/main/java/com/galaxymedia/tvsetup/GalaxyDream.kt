@@ -35,7 +35,7 @@ class GalaxyDream : DreamService() {
         val lite = Themes.liteFor(this, prefs.animations)
         val motion = if (prefs.animations == "off" || lite) "off" else prefs.motion
         val frame = FrameLayout(this).apply { setBackgroundColor(Color.BLACK) }
-        frame.addView(SeasonView(this, Seasons.sceneFor(Calendar.getInstance()), motion), FrameLayout.LayoutParams(-1, -1))
+        frame.addView(SeasonView(this, prefs.previewScene.ifEmpty { Seasons.sceneFor(Calendar.getInstance()) }, motion), FrameLayout.LayoutParams(-1, -1))
         frame.addView(View(this).apply { setBackgroundColor(Color.argb(150, 0, 0, 0)) }, FrameLayout.LayoutParams(-1, -1))
         val tc = TextClock(this).apply {
             format12Hour = "h:mm"

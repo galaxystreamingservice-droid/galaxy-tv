@@ -64,6 +64,9 @@ object Themes {
 
     fun isSeason(key: String): Boolean = key in seasonKeys
 
+    /** The order the "Preview season" row cycles through. The empty entry means "today's picture". */
+    val previewScenes = listOf("", "thanksgiving", "halloween", "christmas", "newyear", "valentines", "stpatricks", "easter", "july4", "galaxy")
+
     /** The backgrounds on offer: Seasonal (auto), two that move (Starfield, Aurora) and two that stay still (Nebula, Galaxy G). */
     private val allWallpapers = listOf("season", "galaxy_g", "stars", "aurora", "nebula")
 

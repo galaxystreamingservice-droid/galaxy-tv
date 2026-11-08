@@ -170,10 +170,18 @@ class SettingsActivity : AppCompatActivity() {
         }
         val hideIdx = out.size
         out += Row("Hidden apps", if (prefs.hiddenApps.isEmpty()) "None" else "${prefs.hiddenApps.size} hidden", false) { pickHidden(hideIdx) }
+        out += Row("App icons", if (prefs.galaxyIcons) "Galaxy style" else "Each app's own", true) { prefs.galaxyIcons = !prefs.galaxyIcons }
         val bgIdx = out.size
         out += Row("Background", Themes.wallpaperName(Themes.resolve(prefs.wallpaper, Themes.liteFor(this, prefs.animations), prefs.rotateMin)), false) { pickBackground(bgIdx) }
         val lite = Themes.liteFor(this, prefs.animations)
         val wp = Themes.resolve(prefs.wallpaper, lite, prefs.rotateMin)
+        if (wp == "season") {
+            val pv = prefs.previewScene
+            val pvName = if (pv.isEmpty()) "Today's picture" else (Seasons.info(this, pv)?.optString("name", pv) ?: pv) + " (for 30 min)"
+            out += Row("Preview season", pvName, true) {
+                prefs.previewScene = Themes.next(Themes.previewScenes, prefs.previewScene)
+            }
+        }
         if (wp == "trace" || Themes.isPicture(wp)) {
             out += Row("Screen edge", if (prefs.edge == "wide") "Wider" else "Normal", true) {
                 prefs.edge = if (prefs.edge == "wide") "normal" else "wide"

@@ -148,7 +148,7 @@ class HomeActivity : AppCompatActivity() {
 
     /** The scene behind the Seasonal and Galaxy G backgrounds ("" for every other background). */
     private fun sceneNow(): String = when (wallpaperNow()) {
-        "season" -> Seasons.sceneFor(java.util.Calendar.getInstance())
+        "season" -> prefs.previewScene.ifEmpty { Seasons.sceneFor(java.util.Calendar.getInstance()) }
         "galaxy_g" -> "galaxy"
         else -> ""
     }
@@ -1041,7 +1041,7 @@ class HomeActivity : AppCompatActivity() {
     private fun rebuildShelf() {
         placeShelf()
         val items = shelfItems()
-        val sig = prefs.shelf + "#" + items.joinToString("|") { it.pkg + updater.isInstalled(it.pkg) }
+        val sig = prefs.shelf + "#" + prefs.galaxyIcons + "#" + items.joinToString("|") { it.pkg + updater.isInstalled(it.pkg) }
         if (sig == shelfSignature && shelfRow.childCount > 0) return
         shelfSignature = sig
 
@@ -1051,7 +1051,8 @@ class HomeActivity : AppCompatActivity() {
         items.forEach { a ->
             val installed = updater.isInstalled(a.pkg)
             val icon: Drawable? = if (installed) {
-                try { packageManager.getApplicationIcon(a.pkg) } catch (e: Exception) { null }
+                (if (prefs.galaxyIcons) IconOverrides.get(this, a.pkg) else null)
+                    ?: try { packageManager.getApplicationIcon(a.pkg) } catch (e: Exception) { null }
             } else null
             val tile = makeTile(a.name, icon, a.name.take(1).uppercase(), a.pkg) {
                 val i = packageManager.getLeanbackLaunchIntentForPackage(a.pkg)
