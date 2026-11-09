@@ -47,6 +47,10 @@ Remove every app you installed except the ones you keep (it lists them and asks 
   Always kept: Galaxy Media, TiviMate, XC7, GalaxyTheater, AppLinked, WorldVPN (both names), SmartTube, Termux, F-Droid, Downloader.
   Google and Android system apps are never touched.
 
+Test the two Settings features (about 1 minute each; nothing is changed):
+  .\galaxy-maintain.ps1 -Ip 192.168.1.172 -TestCleanup       opens the shelf apps, comes back to Galaxy Media, checks they were closed and the VPN stayed on
+  .\galaxy-maintain.ps1 -Ip 192.168.1.172 -TestMaintenance   you walk through Guided maintenance on the TV; it lists every screen that opened and any crash
+
 Home button: NOT SUPPORTED on Fire OS (tested on a Fire TV Stick 4K, Fire OS 8). Amazon's launcher is a protected
 package and Fire OS ignores a chosen home app, so -HomeProbe, -HomeLock, -HomeTest and -InstallHomeTest only
 explain this and change nothing. Still useful:
@@ -96,18 +100,20 @@ param(
     [switch]$HomeProbe,
     [switch]$HomeTest,
     [switch]$InstallHomeTest,
+    [switch]$TestCleanup,
+    [switch]$TestMaintenance,
     [string]$Gist,
     [int]$Port = 5555,
     [string]$Pair
 )
 
-$ScriptVersion = 'v0.13.1 (2026-11-08)'
+$ScriptVersion = 'v0.13.2 (2026-11-08)'
 Write-Host "galaxy-maintain $ScriptVersion" -ForegroundColor DarkGray
 $ErrorActionPreference = 'Continue'   # adb writes status text to stderr; don't treat that as an error
 $ListUrl = 'https://raw.githubusercontent.com/galaxystreamingservice-droid/galaxy-tv/main/app/src/main/assets/debloat_fireos.json'
 
 # No action chosen = the safe default set.
-$anyAction = ($Report -or $Debloat -or $Trim -or $AutoStart -or [bool]$Speed -or [bool]$Screensaver -or $RemoveAmazonSaver -or $Reboot -or $HomeCheck -or $HomeLock -or $HomeUndo -or $Verify -or $Screenshot -or $Audit -or $Benchmark -or $Undebloat -or $Dump -or $InstallApps -or $Cycle -or $Summarize -or $RemoveApps -or $Setup -or $Record -or $HomeProbe -or $HomeTest -or $InstallHomeTest)
+$anyAction = ($Report -or $Debloat -or $Trim -or $AutoStart -or [bool]$Speed -or [bool]$Screensaver -or $RemoveAmazonSaver -or $Reboot -or $HomeCheck -or $HomeLock -or $HomeUndo -or $Verify -or $Screenshot -or $Audit -or $Benchmark -or $Undebloat -or $Dump -or $InstallApps -or $Cycle -or $Summarize -or $RemoveApps -or $Setup -or $Record -or $HomeProbe -or $HomeTest -or $InstallHomeTest -or $TestCleanup -or $TestMaintenance)
 $defaultRun = $false
 if (-not $anyAction -and -not $Pair) {
     $Report = $true; $Debloat = $true; $Trim = $true; $AutoStart = $true; $defaultRun = $true
@@ -957,6 +963,87 @@ if ($RemoveAmazonSaver) {
     }
     Say '  Tip: run -Audit afterwards to see how much memory came back.'
     $changed = $true
+}
+
+# ---- TEST CLEANUP: does "Clean up when I return home" close the apps and keep the VPN? ----
+function PidOf([string]$p) { Sh "pidof $p" | Where-Object { $_ -match '^\d' } | Select-Object -First 1 }
+function MemAvailMB {
+    $m = [regex]::Match(((Sh 'cat /proc/meminfo') -join "`n"), 'MemAvailable:\s+(\d+)')
+    if ($m.Success) { [math]::Round([int64]$m.Groups[1].Value / 1024) } else { $null }
+}
+if ($TestCleanup) {
+    Say "=== CLEAN-UP TEST  $model  $Ip  $date ==="
+    Say 'Checks Settings > Clean up when I return home: apps left open are closed when you come back to Galaxy Media, and the VPN stays on.'
+    Say 'Before running: set that row to On on the TV, and connect WorldVPN. Do not touch the remote (about 1 minute).' 'Yellow'
+    $installed = Get-List 'pm list packages'
+    $vpn = @('io.world.vpn', 'ai.world.tv') | Where-Object { $installed -contains $_ } | Select-Object -First 1
+    $vpnBefore = if ($vpn) { PidOf $vpn } else { $null }
+    $apps = [ordered]@{ 'TiviMate' = @('ar.tvplayer.tv'); 'XC7' = @('com.haxapps.xc7'); 'SmartTube' = @('org.smarttube.stable');
+                        'GalaxyTheater' = @('fyahrebrands.moviebox.galaxytheater', 'com.community.mbox.tv') }
+    Sh "am start -n $GmPkg/.HomeActivity" | Out-Null
+    Start-Sleep -Seconds 4
+    $memStart = MemAvailMB
+    $opened = [ordered]@{}
+    foreach ($name in $apps.Keys) {
+        $p = $apps[$name] | Where-Object { $installed -contains $_ } | Select-Object -First 1
+        if (-not $p) { Say "  ${name}: not installed, skipped"; continue }
+        $comp = Get-Launch $p
+        if (-not $comp) { Say "  ${name}: no start screen found, skipped" 'Yellow'; continue }
+        Sh "am start -n $comp" | Out-Null
+        Start-Sleep -Seconds 10
+        if (PidOf $p) { $opened[$name] = $p; Say "  Opened $name" }
+        else { Say "  ${name}: closed by itself right after opening" 'Yellow' }
+    }
+    $memOpen = MemAvailMB
+    Say 'Coming back to Galaxy Media (the same as pressing Back to it) ...'
+    Sh "am start -n $GmPkg/.HomeActivity" | Out-Null
+    Start-Sleep -Seconds 8
+    $memAfter = MemAvailMB
+    $closed = 0
+    foreach ($name in $opened.Keys) {
+        $p = $opened[$name]
+        if (-not (PidOf $p)) { Chk $true "$name was closed"; $closed++ }
+        else {
+            $svc = (Sh "dumpsys activity services $p") -join ' '
+            if ($svc -match 'isForeground=true') { Chk $false "$name is still open: it runs a foreground service (playing, recording or downloading), and Android does not let another app close that" 'WARN' }
+            else { Chk $false "$name is still open" }
+        }
+    }
+    if ($opened.Count -gt 0 -and $closed -eq 0) { Say '  Nothing was closed. Check that Settings > Clean up when I return home is On, then run this again.' 'Yellow' }
+    if ($vpn) {
+        if ($vpnBefore) { Chk ([bool](PidOf $vpn)) 'WorldVPN stayed running' }
+        else { Say '  WorldVPN was not running, so "the VPN stays on" was not tested. Connect it and run again.' 'Yellow' }
+    } else { Say '  WorldVPN is not installed; VPN check skipped.' }
+    Chk ([bool](PidOf $GmPkg)) 'Galaxy Media is still running (it did not close itself)'
+    if ($memStart -and $memOpen -and $memAfter) {
+        Say ("  Memory available: {0} MB at the start, {1} MB with the apps open, {2} MB after the clean-up ({3:+#;-#;0} MB freed)" -f $memStart, $memOpen, $memAfter, ($memAfter - $memOpen))
+    }
+}
+
+# ---- TEST MAINTENANCE: watch Guided maintenance while you walk through it on the TV ----
+if ($TestMaintenance) {
+    Say "=== MAINTENANCE TEST  $model  $Ip  $date ==="
+    & $adb -s $target logcat -c 2>&1 | Out-Null
+    Write-Host 'On the TV: gear > Settings > Guided maintenance > Start.' -ForegroundColor Yellow
+    Write-Host 'On every step press its button (Show me where / Open Settings / Clear cache), come back with Back, then go to the next step, through to Done.' -ForegroundColor Yellow
+    [void](Read-Host 'Press Enter here when you have pressed Done on the TV')
+    $log = @(& $adb -s $target logcat -d -v brief 2>&1 | ForEach-Object { "$_" })
+    $starts = @($log | Where-Object { $_ -match 'START u0' } | ForEach-Object {
+        $m = [regex]::Match($_, 'cmp=([^\s}]+)'); if ($m.Success) { $m.Groups[1].Value } })
+    Chk ([bool]($starts | Where-Object { $_ -match 'CleanupActivity' })) 'Guided maintenance opened'
+    $other = @($starts | Where-Object { $_ -notmatch [regex]::Escape($GmPkg) } | Select-Object -Unique)
+    if ($other.Count -gt 0) {
+        Say '  Screens the steps opened:'
+        $other | ForEach-Object { Say "    $_" }
+    } else {
+        Say '  No Fire TV screen was opened. On Fire OS 8 that is expected: the steps show where to go instead, because Amazon blocks apps from opening its Settings.'
+    }
+    Chk (-not ($starts | Where-Object { $_ -match 'Dummy|Placeholder' })) 'No step landed on Amazon''s empty placeholder screen'
+    $crash = @($log | Where-Object { $_ -match "Process: $([regex]::Escape($GmPkg))" })
+    Chk ($crash.Count -eq 0) 'Galaxy Media did not crash'
+    if ($crash.Count -gt 0) { $log | Where-Object { $_ -match 'AndroidRuntime' } | Select-Object -First 15 | ForEach-Object { Say "    $_" 'Red' } }
+    Chk ([bool]($starts | Where-Object { $_ -match 'HomeActivity' }) -or [bool](PidOf $GmPkg)) 'Galaxy Media is still running after Done'
+    Say '  Check on the TV: the "Maintenance due" chip is gone from the home screen (Done marks maintenance as finished).'
 }
 
 # ---- stamp + save ----
