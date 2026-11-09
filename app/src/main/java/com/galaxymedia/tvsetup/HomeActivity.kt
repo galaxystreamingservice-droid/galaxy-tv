@@ -161,6 +161,12 @@ class HomeActivity : AppCompatActivity() {
     private lateinit var noticeBox: TextView
     private lateinit var liveView: TextView
     private lateinit var seasonGreeting: TextView
+    private lateinit var renewBox: LinearLayout
+    private lateinit var topInfo: TextView
+    private var renewSignature = ""
+    /** On seasonal backgrounds: tiles and chips become dark glass edged in the season's colour (null = normal look). */
+    private var glassTint: Int? = null
+    private val decoBitmaps = HashMap<String, android.graphics.Bitmap?>()
     private var tickerPages: List<CharSequence> = emptyList()
     private var tickerIdx = 0
     private val tickerRunnable = Runnable { showTickerPage() }
@@ -318,18 +324,22 @@ class HomeActivity : AppCompatActivity() {
         quiet = true
         chipRow.animate().alpha(QUIET_ALPHA).setDuration(800).start()
         sportsBox.animate().alpha(QUIET_ALPHA).setDuration(800).start()
+        renewBox.animate().alpha(QUIET_ALPHA).setDuration(800).start()
     }
 
     private fun leaveQuiet(instant: Boolean) {
         quiet = false
         chipRow.animate().cancel()
         sportsBox.animate().cancel()
+        renewBox.animate().cancel()
         if (instant) {
             chipRow.alpha = 1f
             sportsBox.alpha = 1f
+            renewBox.alpha = 1f
         } else {
             chipRow.animate().alpha(1f).setDuration(150).start()
             sportsBox.animate().alpha(1f).setDuration(150).start()
+            renewBox.animate().alpha(1f).setDuration(150).start()
         }
     }
 
@@ -452,8 +462,18 @@ class HomeActivity : AppCompatActivity() {
             setTextColor(textColor)
         }
         greetingView = TextView(this).apply { textSize = 18f * prefs.textScale; setTextColor(mutedColor) }
+        if (!prefs.highContrast) {
+            clock.setShadowLayer(dpf(8f), 0f, dpf(2f), Color.BLACK)          // stays readable over any picture
+            greetingView.setShadowLayer(dpf(6f), 0f, dpf(1f), Color.BLACK)
+        }
         left.addView(clock)
         left.addView(greetingView)
+        // Date and weather sit under the greeting on every background (they used to be in the middle, hidden on pictures).
+        topInfo = TextView(this).apply { textSize = 16f * prefs.textScale; setTextColor(mutedColor) }
+        if (!prefs.highContrast) topInfo.setShadowLayer(dpf(6f), 0f, dpf(1f), Color.BLACK)
+        left.addView(topInfo)
+        renewBox = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; clipChildren = false; clipToPadding = false }
+        left.addView(renewBox, LinearLayout.LayoutParams(WRAP, WRAP).apply { topMargin = dp(10) })
         top.addView(left, LinearLayout.LayoutParams(0, WRAP, 1f))
 
         chipRow = LinearLayout(this).apply {
@@ -754,13 +774,18 @@ class HomeActivity : AppCompatActivity() {
     private fun syncInfo() {
         val busy = liveView.visibility == View.VISIBLE || tonightView.visibility == View.VISIBLE
         val wp = wallpaperNow()
-        infoView.visibility = if (busy || wp == "logo" || Themes.isPicture(wp) || Themes.isSeason(wp)) View.GONE else View.VISIBLE
+        infoView.visibility = View.GONE   // the date and weather now show under the greeting, top left
         seasonGreeting.visibility = if (Themes.isSeason(wp) && !busy && seasonGreeting.text.isNotEmpty()) View.VISIBLE else View.GONE
     }
 
     /** Seasonal backgrounds put the picture up top and the live bar (or the greeting) in the clear lane beneath it. */
     private fun styleLane(scene: String) {
         val season = scene.isNotEmpty()
+        val tint = if (season && !prefs.highContrast) Seasons.accent(this, scene) else null
+        if (tint != glassTint) {
+            glassTint = tint
+            chipSignature = ""; shelfSignature = ""; renewSignature = ""
+        }
         centerBox.gravity = if (season) Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL else Gravity.CENTER
         fun plate(col: Int) = GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
@@ -934,6 +959,7 @@ class HomeActivity : AppCompatActivity() {
         val name = prefs.userName.trim().replaceFirstChar { it.uppercase() }
         greetingView.text = if (name.isEmpty()) phrase else "$phrase, $name"
         infoView.text = SimpleDateFormat("EEEE, MMMM d", Locale.getDefault()).format(Date()) + weatherSuffix()
+        topInfo.text = infoView.text
     }
 
     private fun updateNotice() {
@@ -987,20 +1013,25 @@ class HomeActivity : AppCompatActivity() {
         }
         if (selfUpdateVersion != null) chips += ChipSpec("Galaxy Media update", accent) { openSetup() }
         val renewal = renewalChip()
-        val renewalUrgent = renewal != null && (renewal.color == red || renewal.color == amber)
-        if (renewal != null && renewalUrgent) chips += renewal
+        val vpn = vpnOn()
+        val vpnChip = ChipSpec(if (vpn) "VPN on" else "VPN off", if (vpn) green else mutedColor) { openVpnApp() }
+        val status = listOfNotNull(renewal) + vpnChip
+        val renewSig = status.joinToString("|") { it.text + it.color } + "#" + glassTint
+        if (renewSig != renewSignature) {
+            renewSignature = renewSig
+            renewBox.removeAllViews()
+            status.forEach { renewBox.addView(makeChip(it), LinearLayout.LayoutParams(WRAP, WRAP).apply { marginEnd = dp(10) }) }
+        }
         syncMaintenanceStamp()
         val upHours = SystemClock.elapsedRealtime() / 3_600_000L
         if (upHours >= 48 && System.currentTimeMillis() > prefs.restartSnoozeUntil) chips += ChipSpec("Restart for best speed", accent) { askRestart(upHours) }
         if (prefs.cleanupDue()) chips += ChipSpec("Maintenance due", accent) { openCleanup() }
-        if (renewal != null && !renewalUrgent) chips += renewal
-        val vpn = vpnOn()
-        val vpnChip = ChipSpec(if (vpn) "VPN on" else "VPN off", if (vpn) green else mutedColor) { openVpnApp() }
         val contactChip = ChipSpec("Contact", mutedColor) { openContact() }
 
-        // The VPN and Contact chips are always shown; other chips share the two remaining slots by priority.
-        val shownChips = chips.take(2) + vpnChip + contactChip
-        val sig = shownChips.joinToString("|") { it.text + it.color }
+        // Top right: up to three passing notices (updates, maintenance...), then Contact and the gear.
+        // The renewal and VPN chips live under the greeting, top left, away from the picture.
+        val shownChips = chips.take(3) + contactChip
+        val sig = shownChips.joinToString("|") { it.text + it.color } + "#" + glassTint
         if (sig == chipSignature && chipRow.childCount > 0) return
         chipSignature = sig
 
@@ -1053,7 +1084,7 @@ class HomeActivity : AppCompatActivity() {
     private fun rebuildShelf() {
         placeShelf()
         val items = shelfItems()
-        val sig = prefs.shelf + "#" + prefs.galaxyIcons + "#" + items.joinToString("|") { it.pkg + it.tag + updater.isInstalled(it.pkg) }
+        val sig = prefs.shelf + "#" + prefs.galaxyIcons + "#" + prefs.tileDeco + "#" + sceneNow() + "#" + glassTint + "#" + items.joinToString("|") { it.pkg + it.tag + updater.isInstalled(it.pkg) }
         if (sig == shelfSignature && shelfRow.childCount > 0) return
         shelfSignature = sig
 
@@ -1073,10 +1104,53 @@ class HomeActivity : AppCompatActivity() {
                 else startActivity(i)
             }
             shelfRow.addView(tile, tileParams(tileW))
+            decorate(tile)
         }
         hintView.text = if (settings == null) "Press the gear, then Setup & updates, to add your settings link." else ""
         hintView.visibility = if (hintView.text.isEmpty()) View.GONE else View.VISIBLE
         if (focusedTag != null) shelfRow.findViewWithTag<View>(focusedTag)?.requestFocus()
+    }
+
+    /** A small holiday decoration on an app tile (Santa hat, 2027 badge, spider...). Only on the Seasonal background. */
+    private fun decorate(tile: View) {
+        if (!prefs.tileDeco || wallpaperNow() != "season") return
+        val scene = sceneNow()
+        val d = Seasons.info(this, scene)?.optJSONObject("deco") ?: return
+        val drawable: Drawable = if (d.optString("badge") == "year") yearBadge() else {
+            val file = d.optString("file")
+            val bmp = decoBitmaps.getOrPut(file) {
+                try { assets.open("seasons/$file").use { android.graphics.BitmapFactory.decodeStream(it) } } catch (e: Exception) { null }
+            } ?: return
+            android.graphics.drawable.BitmapDrawable(resources, bmp)
+        }
+        val right = d.optString("anchor", "tl") == "tr"
+        val x = dp(d.optInt("x", 0)); val y = dp(d.optInt("y", 0))
+        val w = dp(d.optInt("w", 40)); val h = dp(d.optInt("h", 40))
+        fun place() {
+            val left = if (right) tile.width + x else x
+            drawable.setBounds(left, y, left + w, y + h)
+        }
+        tile.overlay.add(drawable)
+        tile.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> place() }
+        tile.post { place(); tile.invalidate() }
+    }
+
+    /** A gold "2027" badge for New Year: next year in late December, this year in early January. */
+    private fun yearBadge(): Drawable {
+        val cal = Calendar.getInstance()
+        val year = cal.get(Calendar.YEAR) + if (cal.get(Calendar.MONTH) == Calendar.DECEMBER) 1 else 0
+        val bw = 168; val bh = 78
+        val bmp = android.graphics.Bitmap.createBitmap(bw, bh, android.graphics.Bitmap.Config.ARGB_8888)
+        val c = android.graphics.Canvas(bmp)
+        val p = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+        p.color = Color.parseColor("#FACC3C")
+        c.drawRoundRect(android.graphics.RectF(2f, 2f, bw - 2f, bh - 2f), bh / 2f, bh / 2f, p)
+        p.style = android.graphics.Paint.Style.STROKE; p.strokeWidth = 4f; p.color = Color.parseColor("#FFF0AA")
+        c.drawRoundRect(android.graphics.RectF(2f, 2f, bw - 2f, bh - 2f), bh / 2f, bh / 2f, p)
+        p.style = android.graphics.Paint.Style.FILL; p.color = Color.parseColor("#1E140A")
+        p.textSize = 46f; p.typeface = Typeface.DEFAULT_BOLD; p.textAlign = android.graphics.Paint.Align.CENTER
+        c.drawText(year.toString(), bw / 2f, bh / 2f + 16f, p)
+        return android.graphics.drawable.BitmapDrawable(resources, bmp)
     }
 
     // ───────────────────────── pieces ─────────────────────────
@@ -1189,8 +1263,14 @@ class HomeActivity : AppCompatActivity() {
     private fun normalBg(radiusDp: Float): Drawable = GradientDrawable().apply {
         shape = GradientDrawable.RECTANGLE
         cornerRadius = dpf(radiusDp)
-        setColor(cardColor)
-        if (prefs.highContrast) setStroke(dp(2), Color.WHITE) else setStroke(dp(1), Color.parseColor("#33FFFFFF"))
+        val g = glassTint
+        if (g != null) {
+            setColor(Color.parseColor("#B3070510"))                       // dark glass, so the picture shows through
+            setStroke(dp(2), (g and 0x00FFFFFF) or 0xAA000000.toInt())      // edged in the season's colour
+        } else {
+            setColor(cardColor)
+            if (prefs.highContrast) setStroke(dp(2), Color.WHITE) else setStroke(dp(1), Color.parseColor("#33FFFFFF"))
+        }
     }
 
     private fun ringBg(radiusDp: Float): Drawable {

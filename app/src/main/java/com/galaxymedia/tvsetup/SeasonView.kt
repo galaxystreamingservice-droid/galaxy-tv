@@ -47,6 +47,9 @@ class SeasonView(ctx: Context, private val scene: String, private val motion: St
     private var started = false
     private val paint = Paint(Paint.FILTER_BITMAP_FLAG)
 
+    /** The clock and greeting sit top left: moving pieces are not drawn there, so the time stays easy to read. */
+    private fun inClock(x: Float, y: Float): Boolean = x < 660f && y < 300f
+
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
         if (started) return
@@ -196,6 +199,7 @@ class SeasonView(ctx: Context, private val scene: String, private val motion: St
                 val travel = (p.y0 + p.v * t) % (artH + 120f)
                 val y = if (rise) artH + 60f - travel else travel - 60f
                 val x = p.x0 + p.sw * sin(t * 1.3f + p.ph)
+                if (inClock(x, y)) continue
                 drawSprite(c, sprite, x, y, p.s, p.s, p.r0 + p.vr * t, p.paint)
             }
         }
@@ -266,6 +270,7 @@ class SeasonView(ctx: Context, private val scene: String, private val motion: St
                 val x = if (v[i] > 0f) m - 200f else artW + 200f - m
                 val y = y0[i] + 18f * sin(t * 0.9f + ph[i])
                 val flap = 0.55f + 0.45f * abs(sin(t * 9f + ph[i]))
+                if (inClock(x, y)) continue
                 drawSprite(c, sprite, x, y, s[i] * 1.6f, s[i] * 1.6f * flap, 0f, paint)
             }
         }
@@ -314,7 +319,7 @@ class SeasonView(ctx: Context, private val scene: String, private val motion: St
             ps[i] = tintPaint(Color.parseColor(a.getString(4)), 235)
         }
         return { c, t ->
-            for (i in 0 until n) drawSprite(c, sprite, xs[i], ys[i] + 10f * sin(t * 1.3f + i), sx[i], sy[i], 4f * sin(t * 0.9f + i), ps[i])
+            for (i in 0 until n) if (!inClock(xs[i], ys[i])) drawSprite(c, sprite, xs[i], ys[i] + 10f * sin(t * 1.3f + i), sx[i], sy[i], 4f * sin(t * 0.9f + i), ps[i])
         }
     }
 

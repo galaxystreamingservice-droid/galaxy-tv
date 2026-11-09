@@ -130,7 +130,7 @@ class Prefs(ctx: Context) {
 
     /** "bottom" (row along the bottom) or "left" (rail down the left side). */
     var shelf: String
-        get() = sp.getString("shelf", "bottom") ?: "bottom"
+        get() = "bottom"   // the apps always sit along the bottom (the left-side rail was retired)
         set(v) = sp.edit().putString("shelf", v).apply()
 
     /** Favorite teams, one entry each like "NFL:DAL|Cowboys" (league:abbreviation|name). */
@@ -179,6 +179,11 @@ class Prefs(ctx: Context) {
     var galaxyIcons: Boolean
         get() = sp.getBoolean("galaxyIcons", true)
         set(v) = sp.edit().putBoolean("galaxyIcons", v).apply()
+
+    /** Small holiday decorations on the app tiles when the Seasonal background is on. */
+    var tileDeco: Boolean
+        get() = sp.getBoolean("tileDeco", true)
+        set(v) = sp.edit().putBoolean("tileDeco", v).apply()
 
     var motion: String
         get() = sp.getString("motion", "normal") ?: "normal"

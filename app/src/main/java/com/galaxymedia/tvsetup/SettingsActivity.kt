@@ -165,12 +165,10 @@ class SettingsActivity : AppCompatActivity() {
             val idx = out.size
             out += Row("My teams", teamsSummary(), false) { pickLeague(idx) }
         }
-        out += Row("Where the apps go", if (prefs.shelf == "left") "On the left" else "At the bottom", true) {
-            prefs.shelf = if (prefs.shelf == "left") "bottom" else "left"
-        }
         val hideIdx = out.size
         out += Row("Hidden apps", if (prefs.hiddenApps.isEmpty()) "None" else "${prefs.hiddenApps.size} hidden", false) { pickHidden(hideIdx) }
         out += Row("App icons", if (prefs.galaxyIcons) "Galaxy style" else "Original", true) { prefs.galaxyIcons = !prefs.galaxyIcons }
+        out += Row("Holiday touches on apps", if (prefs.tileDeco) "On" else "Off", true) { prefs.tileDeco = !prefs.tileDeco }
         val bgIdx = out.size
         out += Row("Background", Themes.wallpaperName(Themes.resolve(prefs.wallpaper, Themes.liteFor(this, prefs.animations), prefs.rotateMin)), false) { pickBackground(bgIdx) }
         val lite = Themes.liteFor(this, prefs.animations)
@@ -248,7 +246,7 @@ class SettingsActivity : AppCompatActivity() {
         list.removeAllViews()
         val rs = rows()
         rs.forEachIndexed { i, r ->
-            val lp = LinearLayout.LayoutParams(MATCH, dp(64)).apply { bottomMargin = dp(12) }
+            val lp = LinearLayout.LayoutParams(MATCH, WRAP).apply { bottomMargin = dp(12) }   // tall enough for the explanation line
             list.addView(makeRow(r, i), lp)
         }
         val idx = focusIndex.coerceIn(0, list.childCount - 1)
@@ -264,6 +262,7 @@ class SettingsActivity : AppCompatActivity() {
         "Where the apps go" to "Where your app icons sit on the home screen.",
         "Hidden apps" to "Apps you do not want to see on the home screen.",
         "App icons" to "Galaxy style is our matching set. Original is the icon each app comes with.",
+        "Holiday touches on apps" to "On the Seasonal background, each app gets a small holiday decoration, like a Santa hat at Christmas.",
         "Background" to "The picture behind everything. Seasonal changes with the holidays.",
         "Preview season" to "Try the other holiday pictures. It returns to today's picture after 30 minutes.",
         "Background movement" to "How much moves in the background. Choose Still if the picture stutters.",
@@ -286,7 +285,8 @@ class SettingsActivity : AppCompatActivity() {
         val box = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(24), dp(10), dp(24), dp(10))
+            setPadding(dp(24), dp(12), dp(24), dp(12))
+            minimumHeight = dp(64)
             isFocusable = true
             isClickable = true
         }

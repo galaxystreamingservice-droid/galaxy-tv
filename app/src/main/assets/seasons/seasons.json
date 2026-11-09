@@ -70,7 +70,15 @@
     ],
     "alpha": 215
    }
-  ]
+  ],
+  "deco": {
+   "file": "deco_thanksgiving.webp",
+   "anchor": "tr",
+   "x": -34,
+   "y": -12,
+   "w": 44,
+   "h": 40
+  }
  },
  "halloween": {
   "name": "Halloween",
@@ -103,7 +111,15 @@
      "#0A0610"
     ]
    }
-  ]
+  ],
+  "deco": {
+   "file": "deco_halloween.webp",
+   "anchor": "tr",
+   "x": -44,
+   "y": -12,
+   "w": 36,
+   "h": 62
+  }
  },
  "christmas": {
   "name": "Christmas",
@@ -253,7 +269,15 @@
     ],
     "speed": 2.2
    }
-  ]
+  ],
+  "deco": {
+   "file": "deco_christmas.webp",
+   "anchor": "tl",
+   "x": -14,
+   "y": -12,
+   "w": 60,
+   "h": 48
+  }
  },
  "newyear": {
   "name": "New Year",
@@ -271,8 +295,8 @@
     "period": 3.6,
     "items": [
      [
-      380,
-      250,
+      420,
+      390,
       150,
       "#FFD25A"
      ],
@@ -334,7 +358,15 @@
      1320
     ]
    }
-  ]
+  ],
+  "deco": {
+   "badge": "year",
+   "anchor": "tr",
+   "x": -44,
+   "y": -12,
+   "w": 56,
+   "h": 26
+  }
  },
  "valentines": {
   "name": "Valentine's Day",
@@ -378,7 +410,15 @@
      1320
     ]
    }
-  ]
+  ],
+  "deco": {
+   "file": "deco_valentines.webp",
+   "anchor": "tr",
+   "x": -26,
+   "y": -12,
+   "w": 34,
+   "h": 32
+  }
  },
  "stpatricks": {
   "name": "St. Patrick's Day",
@@ -500,7 +540,15 @@
      ]
     ]
    }
-  ]
+  ],
+  "deco": {
+   "file": "deco_stpatricks.webp",
+   "anchor": "tr",
+   "x": -28,
+   "y": -12,
+   "w": 36,
+   "h": 40
+  }
  },
  "easter": {
   "name": "Easter",
@@ -633,7 +681,15 @@
      1320
     ]
    }
-  ]
+  ],
+  "deco": {
+   "file": "deco_easter.webp",
+   "anchor": "tl",
+   "x": -8,
+   "y": -12,
+   "w": 50,
+   "h": 46
+  }
  },
  "july4": {
   "name": "Fourth of July",
@@ -651,8 +707,8 @@
     "period": 3.4,
     "items": [
      [
-      360,
-      250,
+      380,
+      390,
       150,
       "#FF4650"
      ],
@@ -682,7 +738,15 @@
      ]
     ]
    }
-  ]
+  ],
+  "deco": {
+   "file": "deco_july4.webp",
+   "anchor": "tr",
+   "x": -36,
+   "y": -14,
+   "w": 46,
+   "h": 36
+  }
  },
  "galaxy": {
   "name": "Galaxy",
