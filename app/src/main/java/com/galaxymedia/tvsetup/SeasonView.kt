@@ -197,6 +197,7 @@ class SeasonView(ctx: Context, private val scene: String, private val motion: St
         "bob" -> buildBob(o)
         "orbit" -> buildOrbit(o)
         "streak" -> buildStreak(o)
+        "flutter" -> buildFlutter(o, rnd)
         else -> null
     }
 
@@ -372,6 +373,32 @@ class SeasonView(ctx: Context, private val scene: String, private val motion: St
         }
     }
 
+    /** Butterflies hovering around spots at the edges of the picture, wings flapping. */
+    private fun buildFlutter(o: JSONObject, rnd: Random): (Canvas, Float) -> Unit {
+        val sprite = Sprites.get("butterfly")
+        val items = o.getJSONArray("items")
+        val n = items.length()
+        val xs = FloatArray(n)
+        val ys = FloatArray(n)
+        val ph = FloatArray(n) { rnd.nextFloat() * 6.28f }
+        val sp = FloatArray(n) { 0.8f + rnd.nextFloat() * 0.4f }
+        val ps = Array(n) { Paint() }
+        for (i in 0 until n) {
+            val a = items.getJSONArray(i)
+            xs[i] = a.getDouble(0).toFloat(); ys[i] = a.getDouble(1).toFloat()
+            ps[i] = tintPaint(Color.parseColor(a.getString(2)), 235)
+        }
+        return { c, t ->
+            for (i in 0 until n) {
+                val tt = t * sp[i] + ph[i]
+                val x = xs[i] + 90f * sin(tt * 0.7f) + 30f * sin(tt * 1.9f)
+                val y = ys[i] + 50f * sin(tt * 0.9f + 1f) + 20f * cos(tt * 2.3f)
+                val flap = 0.25f + 0.75f * abs(sin(t * 11f + ph[i]))
+                if (!inClock(x, y)) drawSprite(c, sprite, x, y, 0.9f * flap, 0.9f, 8f * sin(tt), ps[i])
+            }
+        }
+    }
+
     /** A shooting star now and then. */
     private fun buildStreak(o: JSONObject): (Canvas, Float) -> Unit {
         val period = o.optDouble("period", 11.0).toFloat()
@@ -465,6 +492,11 @@ private object Sprites {
                 }
             }
             "petal" -> c.drawOval(RectF(24f, 8f, 40f, 56f), p)
+            "butterfly" -> {
+                c.drawOval(RectF(6f, 10f, 31f, 34f), p); c.drawOval(RectF(33f, 10f, 58f, 34f), p)     // upper wings
+                c.drawOval(RectF(12f, 32f, 31f, 52f), p); c.drawOval(RectF(33f, 32f, 52f, 52f), p)     // lower wings
+                c.drawRect(30f, 14f, 34f, 50f, p)                                                      // body
+            }
             "drop" -> {
                 p.style = Paint.Style.STROKE; p.strokeWidth = 3f; p.strokeCap = Paint.Cap.ROUND
                 c.drawLine(32f, 10f, 32f, 54f, p)

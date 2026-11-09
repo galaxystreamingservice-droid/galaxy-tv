@@ -1139,17 +1139,22 @@ class HomeActivity : AppCompatActivity() {
             try { assets.open("seasons/$file").use { android.graphics.BitmapFactory.decodeStream(it) } } catch (e: Exception) { null }
         } ?: return
         val label = if (d.optString("label") == "year") yearText() else ""
-        val onTop = d.optString("anchor") == "top"          // Easter: two ears standing on top of the tile
+        val extraFile = d.optString("extra")
+        val extra = if (extraFile.isEmpty()) null else decoBitmaps.getOrPut(extraFile) {
+            try { assets.open("seasons/$extraFile").use { android.graphics.BitmapFactory.decodeStream(it) } } catch (e: Exception) { null }
+        }
+        val onTop = d.optString("anchor") == "top"          // standing on top of the tile
+        val atBottom = d.optString("anchor") == "br"        // sitting on the bottom-right corner (present, pot, heart, basket)
         val w = if (onTop) (side * 0.80f).toInt() else dp((d.optInt("w", 40) * 1.5f).toInt())
         val h = if (onTop) (w * 0.85f).toInt() else dp((d.optInt("h", 40) * 1.5f).toInt())
         val padX = (w * 0.7f).toInt()
         val padTop = if (onTop) dp(8) else (h * 1.3f).toInt()
         val padBottom = when (scene) {                     // room below for the dropping spider and the tumbling coins
             "halloween" -> (h * 1.6f).toInt()
-            "stpatricks" -> (h * 1.5f).toInt()
+            "stpatricks" -> (h * 0.9f).toInt()
             else -> dp(4)
         }
-        val dv = DecoView(this, bmp, scene, motionNow() != "off", label)
+        val dv = DecoView(this, bmp, scene, motionNow() != "off", label, extra)
         // Just above the screen content, so the night dimming and the screensaver still cover it.
         screenRoot.addView(dv, screenRoot.indexOfChild(contentBox) + 1, FrameLayout.LayoutParams(w + 2 * padX, padTop + h + padBottom))
         dv.setDecoRect(padX.toFloat(), padTop.toFloat(), w.toFloat(), h.toFloat())
@@ -1163,6 +1168,9 @@ class HomeActivity : AppCompatActivity() {
             if (onTop) {                                    // ears centred on the tile, their bases just behind its top edge
                 dv.translationX = (tl[0] - rl[0] + (tile.width - w) / 2 - padX).toFloat()
                 dv.translationY = (tl[1] - rl[1] - h + (h * 0.10f).toInt() - padTop).toFloat()
+            } else if (atBottom) {                          // sitting on the bottom-right corner
+                dv.translationX = (tl[0] - rl[0] + tile.width - (w * 0.62f).toInt() - padX).toFloat()
+                dv.translationY = (tl[1] - rl[1] + tile.height - (h * 0.55f).toInt() - padTop).toFloat()
             } else {                                        // perched on the top-right corner
                 dv.translationX = (tl[0] - rl[0] + tile.width - (w * 0.62f).toInt() - padX).toFloat()
                 dv.translationY = (tl[1] - rl[1] - (h * 0.45f).toInt() - padTop).toFloat()

@@ -22,7 +22,7 @@ import kotlin.math.sin
  * The holiday decoration on the last app tile. It lives in its own small see-through view, so the steam, sparkles and
  * candle bursts that reach beyond the tile always redraw cleanly. It only moves on sticks that get motion.
  */
-class DecoView(ctx: Context, private val bmp: Bitmap, private val kind: String, private val animate: Boolean, private val label: String) : View(ctx) {
+class DecoView(ctx: Context, private val bmp: Bitmap, private val kind: String, private val animate: Boolean, private val label: String, private val extra: Bitmap? = null) : View(ctx) {
     private val paint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
     private val fx = Paint(Paint.ANTI_ALIAS_FLAG)
     private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -53,7 +53,8 @@ class DecoView(ctx: Context, private val bmp: Bitmap, private val kind: String, 
     override fun onDraw(c: Canvas) {
         if (dw <= 0f) return
         val t = (SystemClock.uptimeMillis() - t0) / 1000f
-        if (kind == "easter") { ears(c, t); if (animate) postInvalidateDelayed(40); return }
+        if (kind == "easter" && extra != null) { basket(c, t, extra); if (animate) postInvalidateDelayed(40); return }
+        if (kind == "christmas" && extra != null) { present(c, t, extra); if (animate) postInvalidateDelayed(40); return }
         if (kind == "halloween") { spiderDrop(c, t); if (animate) postInvalidateDelayed(40); return }
         var rot = 0f
         var off = 0f
@@ -61,7 +62,6 @@ class DecoView(ctx: Context, private val bmp: Bitmap, private val kind: String, 
         var px = 0.5f
         var py = 1f
         if (animate) when (kind) {
-            "christmas" -> { rot = 5f * sin(tau * t / 2.4f); px = 0.15f; py = 0.9f }          // the hat sways
             "valentines" -> {                                                                  // a heartbeat
                 val ph = (t % 1.4f) / 1.4f
                 val beat = if (ph < 0.5f) max(0f, sin(ph * 2f * tau)) else 0f
@@ -275,7 +275,7 @@ class DecoView(ctx: Context, private val bmp: Bitmap, private val kind: String, 
             val sx = dx + dw * 0.86f
             val sy = dy + dh * 0.32f
             val x = sx + dw * 0.35f * ph
-            val y = sy - dh * 0.12f * sin(PI.toFloat() * min(ph * 2f, 1f)) + dh * 1.2f * ph * ph
+            val y = sy - dh * 0.12f * sin(PI.toFloat() * min(ph * 2f, 1f)) + dh * 0.6f * ph * ph   // a short tumble: the pot sits low on the tile
             val flip = max(0.15f, abs(cos(ph * 9f)))
             val r = dh * 0.11f
             fx.color = Color.rgb(255, 205, 60)
@@ -289,5 +289,42 @@ class DecoView(ctx: Context, private val bmp: Bitmap, private val kind: String, 
             fx.alpha = (255 * a).toInt().coerceIn(0, 255)
             star(c, dx + dw * pt[0], dy + dh * pt[1], dh * 0.12f * (0.6f + 0.4f * a))
         }
+    }
+
+    /** A present: every few seconds the lid hops up, tilts, and a few sparkles pop out. */
+    private fun present(c: Canvas, t: Float, lid: Bitmap) {
+        val ph = if (animate) (t % 3f) / 3f else 1f
+        val hop = if (ph < 0.25f) sin(PI.toFloat() * ph / 0.25f) else 0f
+        rect.set(dx, dy + dh * 0.30f, dx + dw, dy + dh)
+        c.drawBitmap(bmp, null, rect, paint)
+        if (hop > 0.05f) {
+            fx.style = Paint.Style.FILL
+            for ((j, a) in floatArrayOf(-0.6f, 0f, 0.6f).withIndex()) {
+                fx.color = if (j == 1) Color.rgb(255, 240, 170) else Color.WHITE
+                fx.alpha = (255 * hop).toInt().coerceIn(0, 255)
+                star(c, dx + dw * (0.5f + a * 0.4f), dy + dh * (0.2f - 0.35f * hop), dh * 0.09f * hop)
+            }
+        }
+        c.save()
+        c.translate(0f, -dh * 0.28f * hop)
+        c.rotate(-10f * hop, dx + dw * 0.1f, dy + dh * 0.40f)
+        rect.set(dx - dw * 0.03f, dy, dx + dw * 1.03f, dy + dh * 0.44f)
+        c.drawBitmap(lid, null, rect, paint)
+        c.restore()
+    }
+
+    /** An Easter basket that rocks gently, with one egg on top that wobbles. */
+    private fun basket(c: Canvas, t: Float, egg: Bitmap) {
+        val rock = if (animate) 3f * sin(tau * t / 2.6f) else 0f
+        val ph = if (animate) t % 2.2f else 2f
+        val wob = if (ph < 0.5f) 14f * sin(tau * ph / 0.5f) * (1f - ph / 0.5f) else 0f
+        c.save()
+        c.rotate(rock, dx + dw * 0.5f, dy + dh)
+        rect.set(dx, dy, dx + dw, dy + dh)
+        c.drawBitmap(bmp, null, rect, paint)
+        c.rotate(wob, dx + dw * 0.5f, dy + dh * 0.50f)
+        rect.set(dx + dw * 0.37f, dy + dh * 0.06f, dx + dw * 0.63f, dy + dh * 0.50f)
+        c.drawBitmap(egg, null, rect, paint)
+        c.restore()
     }
 }
