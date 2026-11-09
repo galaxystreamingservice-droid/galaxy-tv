@@ -42,6 +42,46 @@ object Seasons {
     }
 
     /** The two weeks up to and including Easter Sunday. */
+    /** "3 days to Christmas" in the week before a holiday, "Christmas is tomorrow", "It's Christmas today!" — otherwise null. */
+    fun countdown(cal: Calendar): String? {
+        val y = cal.get(Calendar.YEAR)
+        val today = day(y, cal.get(Calendar.MONTH) + 1, cal.get(Calendar.DAY_OF_MONTH))
+        val events = listOf(
+            "New Year's Day" to day(y, 1, 1), "Valentine's Day" to day(y, 2, 14), "St. Patrick's Day" to day(y, 3, 17),
+            "Easter" to easterDate(y), "the 4th of July" to day(y, 7, 4), "Halloween" to day(y, 10, 31),
+            "Thanksgiving" to thanksgiving(y), "Christmas" to day(y, 12, 25), "New Year's Day" to day(y + 1, 1, 1)
+        )
+        for ((name, d) in events) {
+            val days = Math.round((d.timeInMillis - today.timeInMillis) / 86_400_000.0).toInt()
+            when (days) {
+                0 -> return "It's $name today!"
+                1 -> return "$name is tomorrow"
+                in 2..7 -> return "$days days to $name"
+            }
+        }
+        return null
+    }
+
+    private fun day(y: Int, month: Int, d: Int): Calendar = Calendar.getInstance().apply { clear(); set(y, month - 1, d) }
+
+    /** US Thanksgiving: the fourth Thursday of November. */
+    private fun thanksgiving(y: Int): Calendar {
+        val first = day(y, 11, 1)
+        val offset = (Calendar.THURSDAY - first.get(Calendar.DAY_OF_WEEK) + 7) % 7
+        return day(y, 11, 1 + offset + 21)
+    }
+
+    private fun easterDate(y: Int): Calendar {
+        val a = y % 19; val b = y / 100; val c = y % 100
+        val d = b / 4; val e = b % 4; val f = (b + 8) / 25
+        val g = (b - f + 1) / 3
+        val h = (19 * a + b - d - g + 15) % 30
+        val i = c / 4; val k = c % 4
+        val l = (32 + 2 * e + 2 * i - h - k) % 7
+        val m = (a + 11 * h + 22 * l) / 451
+        return day(y, (h + l - 7 * m + 114) / 31, (h + l - 7 * m + 114) % 31 + 1)
+    }
+
     private fun inEasterWindow(cal: Calendar): Boolean {
         val y = cal.get(Calendar.YEAR)
         val a = y % 19; val b = y / 100; val c = y % 100

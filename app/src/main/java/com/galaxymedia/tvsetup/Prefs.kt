@@ -177,7 +177,7 @@ class Prefs(ctx: Context) {
 
     /** Shelf icons in the Galaxy style (on) or each app's own icon (off). */
     var galaxyIcons: Boolean
-        get() = sp.getBoolean("galaxyIcons", true)
+        get() = true   // Galaxy-style icons only (the "Original" choice was retired)
         set(v) = sp.edit().putBoolean("galaxyIcons", v).apply()
 
     /** Small holiday decorations on the app tiles when the Seasonal background is on. */

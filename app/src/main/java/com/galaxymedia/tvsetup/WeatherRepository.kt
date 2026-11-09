@@ -18,6 +18,8 @@ object WeatherRepository {
     @Volatile var text = ""
     @Volatile var lastFetch = 0L
     @Volatile var key = ""
+    /** "rain", "snow" or "" — lets the seasonal picture add matching rain or snow. */
+    @Volatile var kind = ""
 
     private fun get(url: String): String {
         val conn = (URL(url).openConnection() as HttpURLConnection).apply {
@@ -55,7 +57,7 @@ object WeatherRepository {
     fun refresh(lat: String, lon: String) {
         val k = "$lat,$lon"
         val now = System.currentTimeMillis()
-        if (k != key) text = ""
+        if (k != key) { text = ""; kind = "" }
         key = k
         lastFetch = now
         try {
@@ -64,7 +66,13 @@ object WeatherRepository {
             val body = get("https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon&current=temperature_2m,weather_code&temperature_unit=$unit")
             val cur = JSONObject(body).optJSONObject("current") ?: throw Exception("no data")
             val t = cur.getDouble("temperature_2m").roundToInt()
-            text = "$t°${if (f) "F" else "C"} ${describe(cur.optInt("weather_code", -1))}"
+            val code = cur.optInt("weather_code", -1)
+            text = "$t°${if (f) "F" else "C"} ${describe(code)}"
+            kind = when (code) {
+                in 51..67, in 80..82, in 95..99 -> "rain"
+                in 71..77, 85, 86 -> "snow"
+                else -> ""
+            }
         } catch (e: Exception) {
             lastFetch = now - 25 * 60_000L // try again in about 5 minutes
             throw e

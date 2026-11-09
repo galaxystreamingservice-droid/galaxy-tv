@@ -167,7 +167,10 @@ class SettingsActivity : AppCompatActivity() {
         }
         val hideIdx = out.size
         out += Row("Hidden apps", if (prefs.hiddenApps.isEmpty()) "None" else "${prefs.hiddenApps.size} hidden", false) { pickHidden(hideIdx) }
-        out += Row("App icons", if (prefs.galaxyIcons) "Galaxy style" else "Original", true) { prefs.galaxyIcons = !prefs.galaxyIcons }
+        val remIdx = out.size
+        out += Row("Renewal reminder", ReminderPicker.parse(prefs.reminderDate)?.let { ReminderPicker.nice(it) } ?: "Not set", false) {
+            ReminderPicker.show(this, prefs, false) { render(remIdx) }
+        }
         out += Row("Holiday touches on apps", if (prefs.tileDeco) "On" else "Off", true) { prefs.tileDeco = !prefs.tileDeco }
         val bgIdx = out.size
         out += Row("Background", Themes.wallpaperName(Themes.resolve(prefs.wallpaper, Themes.liteFor(this, prefs.animations), prefs.rotateMin)), false) { pickBackground(bgIdx) }
@@ -261,8 +264,9 @@ class SettingsActivity : AppCompatActivity() {
         "My teams" to "Pick your teams so their games show first.",
         "Where the apps go" to "Where your app icons sit on the home screen.",
         "Hidden apps" to "Apps you do not want to see on the home screen.",
+        "Renewal reminder" to "The date your service renews. A reminder shows on the home screen from a month before until a month after.",
         "App icons" to "Galaxy style is our matching set. Original is the icon each app comes with.",
-        "Holiday touches on apps" to "On the Seasonal background, each app gets a small holiday decoration, like a Santa hat at Christmas.",
+        "Holiday touches on apps" to "On the Seasonal background, a holiday decoration sits on the corner of the last app, like a Santa hat at Christmas.",
         "Background" to "The picture behind everything. Seasonal changes with the holidays.",
         "Preview season" to "Try the other holiday pictures. It returns to today's picture after 30 minutes.",
         "Background movement" to "How much moves in the background. Choose Still if the picture stutters.",

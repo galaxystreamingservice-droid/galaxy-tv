@@ -27,7 +27,7 @@ import kotlin.math.sin
  * and, for some scenes, moving layers on the letter G. Lower-end sticks, and "Animations: Off", get the still picture.
  * Each scene is described in assets/seasons/seasons.json, so a new scene is data and not code.
  */
-class SeasonView(ctx: Context, private val scene: String, private val motion: String) : View(ctx) {
+class SeasonView(ctx: Context, private val scene: String, private val motion: String, private val weather: String = "") : View(ctx) {
 
     private val artW = 1920f
     private val artH = 1080f
@@ -48,7 +48,10 @@ class SeasonView(ctx: Context, private val scene: String, private val motion: St
     private val paint = Paint(Paint.FILTER_BITMAP_FLAG)
 
     /** The clock and greeting sit top left: moving pieces are not drawn there, so the time stays easy to read. */
-    private fun inClock(x: Float, y: Float): Boolean = x < 660f && y < 300f
+    private fun inClock(x: Float, y: Float): Boolean =
+        (x < 660f && y < 430f) ||                       // clock, greeting, date, status chips
+        (x > 1480f && y < 200f) ||                      // Contact and the gear
+        (y > 470f && x > 200f && x < 1720f)             // the greeting lane, the ticker and the apps: kept calm
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
@@ -93,6 +96,13 @@ class SeasonView(ctx: Context, private val scene: String, private val motion: St
                 val fx = try { build(o, rnd) } catch (e: Exception) { null } ?: continue
                 if (o.optString("z") == "back") bk += fx else fr += fx
             }
+            // Weather-aware: light rain or snow when the forecast says so (Christmas already has its own snow).
+            val extra = when {
+                weather == "rain" -> JSONObject("{\"type\":\"fall\",\"sprite\":\"drop\",\"count\":46,\"speed\":[520,780],\"sway\":[0,4],\"size\":[0.7,1.1],\"angle\":14,\"tint\":[\"#BFD8FF\"],\"alpha\":110}")
+                weather == "snow" && scene != "christmas" -> JSONObject("{\"type\":\"fall\",\"sprite\":\"snow\",\"count\":34,\"speed\":[40,90],\"sway\":[10,40],\"size\":[0.5,1.1],\"spin\":[-20,20],\"tint\":[\"#EBF5FF\"],\"alpha\":200}")
+                else -> null
+            }
+            if (extra != null) { val fx = try { build(extra, rnd) } catch (e: Exception) { null }; if (fx != null) fr += fx }
         }
         post {
             base = b; layers = ls; back = bk; front = fr
@@ -113,8 +123,27 @@ class SeasonView(ctx: Context, private val scene: String, private val motion: St
             for (l in layers) drawLayer(c, l, t)
             for (fx in front) fx(c, t)
         }
+        dayTint()?.let { c.drawRect(0f, 0f, artW, artH, it) }
         c.restore()
-        if (animate) postInvalidateDelayed(40)
+        if (animate) postInvalidateDelayed(40) else postInvalidateDelayed(60_000L)   // the still picture still follows the time of day
+    }
+
+    private val tintPaint = Paint()
+    private var tintHour = -1
+
+    /** A little darker late at night, a touch warmer in the evening, a little brighter in the morning. */
+    private fun dayTint(): Paint? {
+        val h = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+        if (h != tintHour) {
+            tintHour = h
+            tintPaint.color = when (h) {
+                in 6..9 -> Color.argb(18, 255, 241, 214)
+                in 19..21 -> Color.argb(40, 10, 6, 18)
+                in 22..23, in 0..5 -> Color.argb(70, 5, 10, 30)
+                else -> Color.TRANSPARENT
+            }
+        }
+        return if (Color.alpha(tintPaint.color) == 0) null else tintPaint
     }
 
     private fun drawLayer(c: Canvas, l: Layer, t: Float) {
@@ -174,8 +203,8 @@ class SeasonView(ctx: Context, private val scene: String, private val motion: St
     /** Leaves, snow, confetti and petals fall; hearts rise. They stay out of the middle column, where the G is. */
     private fun buildFall(o: JSONObject, rnd: Random, rise: Boolean): (Canvas, Float) -> Unit {
         val sprite = Sprites.get(o.getString("sprite"))
-        val n = o.optInt("count", 20)
-        val sp = rng(o, "speed", 40f, 90f)
+        val n = (o.optInt("count", 20) * 0.6f).toInt().coerceAtLeast(4)   // calmer: fewer pieces
+        val sp = rng(o, "speed", 40f, 90f).let { floatArrayOf(it[0] * 0.85f, it[1] * 0.85f) }   // and a little slower
         val sz = rng(o, "size", 0.7f, 1.3f)
         val sw = rng(o, "sway", 10f, 40f)
         val spin = rng(o, "spin", -40f, 40f)
@@ -184,13 +213,14 @@ class SeasonView(ctx: Context, private val scene: String, private val motion: St
         val av = o.optJSONArray("avoid")
         val a0 = av?.getDouble(0)?.toFloat() ?: 0f
         val span = (av?.getDouble(1)?.toFloat() ?: 0f) - a0
+        val fixedAngle: Float? = if (o.has("angle")) o.getDouble("angle").toFloat() else null   // rain falls at one slant
         class P(val x0: Float, val y0: Float, val v: Float, val s: Float, val sw: Float, val ph: Float, val r0: Float, val vr: Float, val paint: Paint)
         val ps = List(n) {
             var x = rnd.nextFloat() * (artW - max(span, 0f))
             if (span > 0f && x > a0) x += span
             P(
                 x, rnd.nextFloat() * (artH + 120f), pick(sp, rnd), pick(sz, rnd), pick(sw, rnd), rnd.nextFloat() * 6.28f,
-                rnd.nextFloat() * 360f, pick(spin, rnd),
+                fixedAngle ?: (rnd.nextFloat() * 360f), if (fixedAngle != null) 0f else pick(spin, rnd),
                 if (cols.isEmpty()) Paint(Paint.FILTER_BITMAP_FLAG).apply { alpha = alphaVal } else tintPaint(cols[rnd.nextInt(cols.size)], alphaVal)
             )
         }
@@ -435,6 +465,10 @@ private object Sprites {
                 }
             }
             "petal" -> c.drawOval(RectF(24f, 8f, 40f, 56f), p)
+            "drop" -> {
+                p.style = Paint.Style.STROKE; p.strokeWidth = 3f; p.strokeCap = Paint.Cap.ROUND
+                c.drawLine(32f, 10f, 32f, 54f, p)
+            }
             "spark" -> {
                 val path = Path()
                 path.moveTo(32f, 4f); path.lineTo(37f, 27f); path.lineTo(60f, 32f); path.lineTo(37f, 37f)

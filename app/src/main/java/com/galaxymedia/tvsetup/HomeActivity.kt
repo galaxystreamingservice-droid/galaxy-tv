@@ -163,6 +163,7 @@ class HomeActivity : AppCompatActivity() {
     private lateinit var seasonGreeting: TextView
     private lateinit var renewBox: LinearLayout
     private lateinit var topInfo: TextView
+    private lateinit var countdownView: TextView
     private var renewSignature = ""
     /** On seasonal backgrounds: tiles and chips become dark glass edged in the season's colour (null = normal look). */
     private var glassTint: Int? = null
@@ -408,7 +409,7 @@ class HomeActivity : AppCompatActivity() {
             try { WeatherRepository.refresh(lat, lon) } catch (e: Exception) { /* no weather shown */ }
             withContext(Dispatchers.Main) {
                 weatherBusy = false
-                if (!isFinishing) updateGreeting()
+                if (!isFinishing) { updateGreeting(); applyTheme() }   // rain or snow on the picture follows the new forecast
             }
         }
     }
@@ -472,6 +473,10 @@ class HomeActivity : AppCompatActivity() {
         topInfo = TextView(this).apply { textSize = 16f * prefs.textScale; setTextColor(mutedColor) }
         if (!prefs.highContrast) topInfo.setShadowLayer(dpf(6f), 0f, dpf(1f), Color.BLACK)
         left.addView(topInfo)
+        // "3 days to Christmas" in the week before a holiday (Seasonal background only)
+        countdownView = TextView(this).apply { textSize = 16f * prefs.textScale; setTypeface(null, Typeface.BOLD); visibility = View.GONE }
+        if (!prefs.highContrast) countdownView.setShadowLayer(dpf(6f), 0f, dpf(1f), Color.BLACK)
+        left.addView(countdownView)
         renewBox = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; clipChildren = false; clipToPadding = false }
         left.addView(renewBox, LinearLayout.LayoutParams(WRAP, WRAP).apply { topMargin = dp(10) })
         top.addView(left, LinearLayout.LayoutParams(0, WRAP, 1f))
@@ -866,7 +871,7 @@ class HomeActivity : AppCompatActivity() {
             sportsSignature = ""
         }
         applyContentPadding()
-        val bgKey = wallpaperNow() + ":" + sceneNow() + ":" + motionNow() + ":" + prefs.accent + ":" + prefs.edge + ":" + prefs.beam
+        val bgKey = wallpaperNow() + ":" + sceneNow() + ":" + motionNow() + ":" + WeatherRepository.kind + ":" + prefs.accent + ":" + prefs.edge + ":" + prefs.beam
         if (appliedBackground != bgKey) {
             appliedBackground = bgKey
             bgHolder.removeAllViews()
@@ -878,7 +883,7 @@ class HomeActivity : AppCompatActivity() {
                 }
                 "trace" -> LightTraceView(this, motionNow(), accent, Themes.beamColor(prefs.beam), if (prefs.edge == "wide") 42f else 18f)
                 "nebula", "sunset", "ocean", "city", "grid", "mountains" -> SceneView(this, wp, accent)
-                "season", "galaxy_g" -> SeasonView(this, sceneNow(), motionNow())
+                "season", "galaxy_g" -> SeasonView(this, sceneNow(), motionNow(), WeatherRepository.kind)
                 in Themes.pictureKeys -> PictureTraceView(this, wp, motionNow(), Themes.beamColor(prefs.beam))
                 "aurora" -> AuroraView(this, motionNow())
                 "plain" -> null
@@ -960,6 +965,10 @@ class HomeActivity : AppCompatActivity() {
         greetingView.text = if (name.isEmpty()) phrase else "$phrase, $name"
         infoView.text = SimpleDateFormat("EEEE, MMMM d", Locale.getDefault()).format(Date()) + weatherSuffix()
         topInfo.text = infoView.text
+        val cd = if (wallpaperNow() == "season") Seasons.countdown(Calendar.getInstance()) else null
+        countdownView.text = cd ?: ""
+        countdownView.visibility = if (cd == null) View.GONE else View.VISIBLE
+        countdownView.setTextColor(if (prefs.highContrast) textColor else Seasons.accent(this, sceneNow().ifEmpty { "galaxy" }))
     }
 
     private fun updateNotice() {
@@ -986,11 +995,12 @@ class HomeActivity : AppCompatActivity() {
      * Within 14 days, or past: it turns amber or red and opens the Pay / Renew screen.
      */
     private fun renewalChip(): ChipSpec? {
-        val date = ReminderPicker.parse(prefs.reminderDate)
-            ?: return ChipSpec("Set a reminder", mutedColor) { pickReminder(false) }
+        // Set in Settings > Renewal reminder. Shows from a month before the date until a month after it.
+        val date = ReminderPicker.parse(prefs.reminderDate) ?: return null
         val days = ReminderPicker.daysLeft(date)
+        if (days > 30 || days < -30) return null
         val nice = ReminderPicker.nice(date)
-        if (days > 14) return ChipSpec("Renews $nice", mutedColor) { pickReminder(false) }
+        if (days > 14) return ChipSpec("Renews $nice", mutedColor) { openPay() }
         val color = if (days <= 3) red else amber
         return ChipSpec(if (days < 0) "Expired $nice · Renew" else "Renew · $nice", color) { openPay() }
     }
@@ -1091,20 +1101,21 @@ class HomeActivity : AppCompatActivity() {
         val focusedTag = shelfRow.focusedChild?.tag?.toString()
         shelfRow.removeAllViews()
         val tileW = shelfTileWidth(items.size)
-        items.forEach { a ->
+        items.forEachIndexed { idx, a ->
+            val note = a.tag.ifBlank { defaultNote(a.pkg) }
             val installed = updater.isInstalled(a.pkg)
             val icon: Drawable? = if (installed) {
                 (if (prefs.galaxyIcons) IconOverrides.get(this, a.pkg) else null)
                     ?: try { packageManager.getApplicationIcon(a.pkg) } catch (e: Exception) { null }
             } else null
-            val tile = makeTile(a.name, icon, a.name.take(1).uppercase(), a.pkg, a.tag) {
+            val tile = makeTile(a.name, icon, a.name.take(1).uppercase(), a.pkg, note) {
                 val i = packageManager.getLeanbackLaunchIntentForPackage(a.pkg)
                     ?: packageManager.getLaunchIntentForPackage(a.pkg)
                 if (i == null) Toast.makeText(this, "${a.name} isn't installed yet. Open Setup & updates.", Toast.LENGTH_LONG).show()
                 else startActivity(i)
             }
             shelfRow.addView(tile, tileParams(tileW))
-            decorate(tile)
+            if (idx == items.size - 1) decorate(tile)   // one holiday decoration, on the last tile only
         }
         hintView.text = if (settings == null) "Press the gear, then Setup & updates, to add your settings link." else ""
         hintView.visibility = if (hintView.text.isEmpty()) View.GONE else View.VISIBLE
@@ -1123,12 +1134,11 @@ class HomeActivity : AppCompatActivity() {
             } ?: return
             android.graphics.drawable.BitmapDrawable(resources, bmp)
         }
-        val right = d.optString("anchor", "tl") == "tr"
-        val x = dp(d.optInt("x", 0)); val y = dp(d.optInt("y", 0))
-        val w = dp(d.optInt("w", 40)); val h = dp(d.optInt("h", 40))
-        fun place() {
-            val left = if (right) tile.width + x else x
-            drawable.setBounds(left, y, left + w, y + h)
+        val w = dp((d.optInt("w", 40) * 1.5f).toInt()); val h = dp((d.optInt("h", 40) * 1.5f).toInt())
+        fun place() {                                     // perched on the tile's top-right corner
+            val left = tile.width - (w * 0.62f).toInt()
+            val top = -(h * 0.45f).toInt()
+            drawable.setBounds(left, top, left + w, top + h)
         }
         tile.overlay.add(drawable)
         tile.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> place() }
@@ -1155,64 +1165,58 @@ class HomeActivity : AppCompatActivity() {
 
     // ───────────────────────── pieces ─────────────────────────
 
-    private fun tileParams(width: Int = dp(136)): LinearLayout.LayoutParams {
-        return if (prefs.shelf == "left") {
-            // Shorter tiles in the rail so about four fit on screen; the rail scrolls for the rest.
-            LinearLayout.LayoutParams(dp(136), dp(84)).apply { topMargin = dp(4); bottomMargin = dp(4) }
-        } else {
-            LinearLayout.LayoutParams(width, dp(108)).apply { marginStart = dp(8); marginEnd = dp(8) }
-        }
+    /** Square tiles, so each logo fills its tile. */
+    private fun tileParams(width: Int = dp(112)): LinearLayout.LayoutParams {
+        val side = width.coerceAtMost(dp(112))
+        return LinearLayout.LayoutParams(side, side).apply { marginStart = dp(10); marginEnd = dp(10) }
     }
 
+    /** A shelf tile: the app's logo fills it, with an optional small badge ("Best", "Easiest") in the top-left corner. */
     private fun makeTile(label: String, icon: Drawable?, glyph: String, tag: String, note: String = "", onClick: () -> Unit): View {
-        val box = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            setPadding(dp(10), dp(12), dp(10), dp(12))
+        val box = FrameLayout(this).apply {
+            setPadding(dp(6), dp(6), dp(6), dp(6))
             isFocusable = true
             isClickable = true
             this.tag = tag
+            contentDescription = label
+            clipChildren = false
+            clipToPadding = false
         }
         val labels = mutableListOf<Pair<TextView, Int>>()
         if (icon != null) {
-            box.addView(ImageView(this).apply { setImageDrawable(icon) }, LinearLayout.LayoutParams(dp(48), dp(48)))
+            box.addView(ImageView(this).apply { setImageDrawable(icon); scaleType = ImageView.ScaleType.FIT_CENTER }, FrameLayout.LayoutParams(MATCH, MATCH))
         } else {
-            val g = TextView(this).apply { text = glyph; textSize = 30f * prefs.textScale; gravity = Gravity.CENTER; setTextColor(accent) }
-            box.addView(g, LinearLayout.LayoutParams(dp(48), dp(48)))
+            val g = TextView(this).apply { text = glyph; textSize = 40f * prefs.textScale; gravity = Gravity.CENTER; setTextColor(accent) }
+            box.addView(g, FrameLayout.LayoutParams(MATCH, MATCH))
             labels += g to accent
         }
-        val lbl = TextView(this).apply {
-            text = label
-            textSize = 15f * prefs.textScale
-            setTextColor(textColor)
-            gravity = Gravity.CENTER
-            maxLines = 1
-            ellipsize = TextUtils.TruncateAt.END
-            setPadding(0, dp(6), 0, 0)
-        }
-        // Long names (like GalaxyTheater) shrink to fit the tile instead of being cut off.
-        TextViewCompat.setAutoSizeTextTypeUniformWithConfiguration(
-            lbl, (9 * prefs.textScale).toInt(), (15 * prefs.textScale).toInt(), 1, TypedValue.COMPLEX_UNIT_SP
-        )
-        box.addView(lbl, LinearLayout.LayoutParams(MATCH, WRAP))
-        labels += lbl to textColor
-        if (note.isNotEmpty() && prefs.shelf != "left") {
-            // A short note under the name (set in the settings file), such as "Best choice".
-            box.setPadding(dp(10), dp(6), dp(10), dp(6))
-            val nt = TextView(this).apply {
+        if (note.isNotEmpty()) {
+            val badge = TextView(this).apply {
                 text = note
-                textSize = 11f * prefs.textScale
-                setTextColor(mutedColor)
-                gravity = Gravity.CENTER
-                maxLines = 1
-                ellipsize = TextUtils.TruncateAt.END
+                textSize = 10f * prefs.textScale
+                setTypeface(null, Typeface.BOLD)
+                letterSpacing = 0.04f
+                setTextColor(Color.argb(220, 255, 255, 255))
+                setPadding(dp(6), dp(1), dp(6), dp(2))
+                background = GradientDrawable().apply {
+                    shape = GradientDrawable.RECTANGLE
+                    cornerRadius = dpf(8f)
+                    setColor(Color.argb(150, 0, 0, 0))
+                    setStroke(dp(1), Color.argb(70, 255, 255, 255))
+                }
             }
-            box.addView(nt, LinearLayout.LayoutParams(MATCH, WRAP))
-            labels += nt to mutedColor
+            box.addView(badge, FrameLayout.LayoutParams(WRAP, WRAP, Gravity.TOP or Gravity.START).apply { topMargin = dp(2); leftMargin = dp(2) })
         }
         box.setOnClickListener { onClick() }
-        style(box, 14f, labels)
+        style(box, 18f, labels)
         return box
+    }
+
+    /** The small corner badge for an app (a "tag" in the settings file replaces it). */
+    private fun defaultNote(pkg: String): String = when (pkg) {
+        "ar.tvplayer.tv" -> "Best"
+        "com.haxapps.xc7" -> "Easiest"
+        else -> ""
     }
 
     private fun makeChip(spec: ChipSpec): View {
