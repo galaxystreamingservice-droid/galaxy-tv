@@ -73,11 +73,8 @@
   ],
   "deco": {
    "file": "deco_thanksgiving.webp",
-   "anchor": "tr",
-   "x": -34,
-   "y": -12,
-   "w": 44,
-   "h": 40
+   "w": 52,
+   "h": 37
   }
  },
  "halloween": {
@@ -114,11 +111,8 @@
   ],
   "deco": {
    "file": "deco_halloween.webp",
-   "anchor": "tr",
-   "x": -44,
-   "y": -12,
-   "w": 36,
-   "h": 62
+   "w": 32,
+   "h": 28
   }
  },
  "christmas": {
@@ -272,9 +266,6 @@
   ],
   "deco": {
    "file": "deco_christmas.webp",
-   "anchor": "tl",
-   "x": -14,
-   "y": -12,
    "w": 60,
    "h": 48
   }
@@ -360,12 +351,10 @@
    }
   ],
   "deco": {
-   "badge": "year",
-   "anchor": "tr",
-   "x": -44,
-   "y": -12,
-   "w": 56,
-   "h": 26
+   "file": "deco_newyear.webp",
+   "label": "year",
+   "w": 52,
+   "h": 32
   }
  },
  "valentines": {
@@ -413,9 +402,6 @@
   ],
   "deco": {
    "file": "deco_valentines.webp",
-   "anchor": "tr",
-   "x": -26,
-   "y": -12,
    "w": 34,
    "h": 32
   }
@@ -543,10 +529,7 @@
   ],
   "deco": {
    "file": "deco_stpatricks.webp",
-   "anchor": "tr",
-   "x": -28,
-   "y": -12,
-   "w": 36,
+   "w": 46,
    "h": 40
   }
  },
@@ -621,11 +604,9 @@
   ],
   "deco": {
    "file": "deco_easter.webp",
-   "anchor": "tl",
-   "x": -8,
-   "y": -12,
-   "w": 50,
-   "h": 46
+   "anchor": "top",
+   "w": 0,
+   "h": 0
   }
  },
  "july4": {
@@ -678,11 +659,8 @@
   ],
   "deco": {
    "file": "deco_july4.webp",
-   "anchor": "tr",
-   "x": -36,
-   "y": -14,
-   "w": 46,
-   "h": 36
+   "w": 34,
+   "h": 50
   }
  },
  "galaxy": {

@@ -164,6 +164,8 @@ class HomeActivity : AppCompatActivity() {
     private lateinit var renewBox: LinearLayout
     private lateinit var topInfo: TextView
     private lateinit var countdownView: TextView
+    private lateinit var screenRoot: FrameLayout
+    private var decoView: DecoView? = null
     private var renewSignature = ""
     /** On seasonal backgrounds: tiles and chips become dark glass edged in the season's colour (null = normal look). */
     private var glassTint: Int? = null
@@ -437,6 +439,7 @@ class HomeActivity : AppCompatActivity() {
             clipChildren = false
             clipToPadding = false
         }
+        screenRoot = root
         bgHolder = FrameLayout(this)
         root.addView(bgHolder, FrameLayout.LayoutParams(MATCH, MATCH))
 
@@ -1101,6 +1104,8 @@ class HomeActivity : AppCompatActivity() {
         val focusedTag = shelfRow.focusedChild?.tag?.toString()
         shelfRow.removeAllViews()
         val tileW = shelfTileWidth(items.size)
+        decoView?.let { (it.parent as? ViewGroup)?.removeView(it) }
+        decoView = null
         items.forEachIndexed { idx, a ->
             val note = a.tag.ifBlank { defaultNote(a.pkg) }
             val installed = updater.isInstalled(a.pkg)
@@ -1115,52 +1120,62 @@ class HomeActivity : AppCompatActivity() {
                 else startActivity(i)
             }
             shelfRow.addView(tile, tileParams(tileW))
-            if (idx == items.size - 1) decorate(tile)   // one holiday decoration, on the last tile only
+            if (idx == items.size - 1) decorate(tile, tileW.coerceAtMost(dp(112)))   // one holiday decoration, on the last tile only
         }
         hintView.text = if (settings == null) "Press the gear, then Setup & updates, to add your settings link." else ""
         hintView.visibility = if (hintView.text.isEmpty()) View.GONE else View.VISIBLE
         if (focusedTag != null) shelfRow.findViewWithTag<View>(focusedTag)?.requestFocus()
     }
 
-    /** A small holiday decoration on an app tile (Santa hat, 2027 badge, spider...). Only on the Seasonal background. */
-    private fun decorate(tile: View) {
+    /** The holiday decoration perched on the last app tile (Seasonal background only). It moves on sticks that get motion. */
+    private fun decorate(tile: View, side: Int) {
+        decoView?.let { (it.parent as? ViewGroup)?.removeView(it) }
+        decoView = null
         if (!prefs.tileDeco || wallpaperNow() != "season") return
         val scene = sceneNow()
         val d = Seasons.info(this, scene)?.optJSONObject("deco") ?: return
-        val drawable: Drawable = if (d.optString("badge") == "year") yearBadge() else {
-            val file = d.optString("file")
-            val bmp = decoBitmaps.getOrPut(file) {
-                try { assets.open("seasons/$file").use { android.graphics.BitmapFactory.decodeStream(it) } } catch (e: Exception) { null }
-            } ?: return
-            android.graphics.drawable.BitmapDrawable(resources, bmp)
+        val file = d.optString("file")
+        val bmp = decoBitmaps.getOrPut(file) {
+            try { assets.open("seasons/$file").use { android.graphics.BitmapFactory.decodeStream(it) } } catch (e: Exception) { null }
+        } ?: return
+        val label = if (d.optString("label") == "year") yearText() else ""
+        val onTop = d.optString("anchor") == "top"          // Easter: two ears standing on top of the tile
+        val w = if (onTop) (side * 0.80f).toInt() else dp((d.optInt("w", 40) * 1.5f).toInt())
+        val h = if (onTop) (w * 0.85f).toInt() else dp((d.optInt("h", 40) * 1.5f).toInt())
+        val padX = (w * 0.7f).toInt()
+        val padTop = if (onTop) dp(8) else (h * 1.3f).toInt()
+        val padBottom = when (scene) {                     // room below for the dropping spider and the tumbling coins
+            "halloween" -> (h * 1.6f).toInt()
+            "stpatricks" -> (h * 1.5f).toInt()
+            else -> dp(4)
         }
-        val w = dp((d.optInt("w", 40) * 1.5f).toInt()); val h = dp((d.optInt("h", 40) * 1.5f).toInt())
-        fun place() {                                     // perched on the tile's top-right corner
-            val left = tile.width - (w * 0.62f).toInt()
-            val top = -(h * 0.45f).toInt()
-            drawable.setBounds(left, top, left + w, top + h)
+        val dv = DecoView(this, bmp, scene, motionNow() != "off", label)
+        // Just above the screen content, so the night dimming and the screensaver still cover it.
+        screenRoot.addView(dv, screenRoot.indexOfChild(contentBox) + 1, FrameLayout.LayoutParams(w + 2 * padX, padTop + h + padBottom))
+        dv.setDecoRect(padX.toFloat(), padTop.toFloat(), w.toFloat(), h.toFloat())
+        decoView = dv
+        fun place() {
+            if (decoView !== dv) return
+            val tl = IntArray(2)
+            val rl = IntArray(2)
+            tile.getLocationInWindow(tl)
+            screenRoot.getLocationInWindow(rl)
+            if (onTop) {                                    // ears centred on the tile, their bases just behind its top edge
+                dv.translationX = (tl[0] - rl[0] + (tile.width - w) / 2 - padX).toFloat()
+                dv.translationY = (tl[1] - rl[1] - h + (h * 0.10f).toInt() - padTop).toFloat()
+            } else {                                        // perched on the top-right corner
+                dv.translationX = (tl[0] - rl[0] + tile.width - (w * 0.62f).toInt() - padX).toFloat()
+                dv.translationY = (tl[1] - rl[1] - (h * 0.45f).toInt() - padTop).toFloat()
+            }
         }
-        tile.overlay.add(drawable)
         tile.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> place() }
-        tile.post { place(); tile.invalidate() }
+        tile.post { place() }
     }
 
-    /** A gold "2027" badge for New Year: next year in late December, this year in early January. */
-    private fun yearBadge(): Drawable {
+    /** The year on the New Year glasses: the coming year until January is over (2027 from February 2026 through January 2027). */
+    private fun yearText(): String {
         val cal = Calendar.getInstance()
-        val year = cal.get(Calendar.YEAR) + if (cal.get(Calendar.MONTH) == Calendar.DECEMBER) 1 else 0
-        val bw = 168; val bh = 78
-        val bmp = android.graphics.Bitmap.createBitmap(bw, bh, android.graphics.Bitmap.Config.ARGB_8888)
-        val c = android.graphics.Canvas(bmp)
-        val p = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
-        p.color = Color.parseColor("#FACC3C")
-        c.drawRoundRect(android.graphics.RectF(2f, 2f, bw - 2f, bh - 2f), bh / 2f, bh / 2f, p)
-        p.style = android.graphics.Paint.Style.STROKE; p.strokeWidth = 4f; p.color = Color.parseColor("#FFF0AA")
-        c.drawRoundRect(android.graphics.RectF(2f, 2f, bw - 2f, bh - 2f), bh / 2f, bh / 2f, p)
-        p.style = android.graphics.Paint.Style.FILL; p.color = Color.parseColor("#1E140A")
-        p.textSize = 46f; p.typeface = Typeface.DEFAULT_BOLD; p.textAlign = android.graphics.Paint.Align.CENTER
-        c.drawText(year.toString(), bw / 2f, bh / 2f + 16f, p)
-        return android.graphics.drawable.BitmapDrawable(resources, bmp)
+        return (cal.get(Calendar.YEAR) + if (cal.get(Calendar.MONTH) == Calendar.JANUARY) 0 else 1).toString()
     }
 
     // ───────────────────────── pieces ─────────────────────────
