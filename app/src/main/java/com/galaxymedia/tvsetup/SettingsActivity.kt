@@ -78,7 +78,7 @@ class SettingsActivity : AppCompatActivity() {
         }
         col.addView(titleView)
         col.addView(TextView(this).apply {
-            text = "Press a row to change it. Changes show when you go back."
+            text = "Press a row to change it. Press Back when you are done to see the change."
             textSize = 16f * prefs.textScale
             setTextColor(mutedColor)
             gravity = Gravity.CENTER
@@ -128,8 +128,8 @@ class SettingsActivity : AppCompatActivity() {
 
     private fun motionName(k: String): String = when (k) {
         "normal" -> "Normal"
-        "reduced" -> "Reduced"
-        else -> "Off"
+        "reduced" -> "Slow"
+        else -> "Still"
     }
 
     private fun confirmReset() {
@@ -155,22 +155,22 @@ class SettingsActivity : AppCompatActivity() {
 
     private fun rows(): List<Row> {
         val out = mutableListOf<Row>()
-        out += Row("Name", prefs.userName.ifBlank { "Not set" }, false) { askName() }
+        out += Row("Your name", prefs.userName.ifBlank { "Not set" }, false) { askName() }
         val accIdx = out.size
-        out += Row("Accent color", Themes.accentName(prefs.accent), false) { pickAccent(accIdx) }
-        out += Row("Sports", sportsName(prefs.sports), true) {
+        out += Row("Highlight color", Themes.accentName(prefs.accent), false) { pickAccent(accIdx) }
+        out += Row("Sports scores", sportsName(prefs.sports), true) {
             prefs.sports = Themes.next(sportsModes, prefs.sports)
         }
         if (prefs.sports == "my") {
             val idx = out.size
             out += Row("My teams", teamsSummary(), false) { pickLeague(idx) }
         }
-        out += Row("Shelf position", if (prefs.shelf == "left") "Left rail" else "Bottom row", true) {
+        out += Row("Where the apps go", if (prefs.shelf == "left") "On the left" else "At the bottom", true) {
             prefs.shelf = if (prefs.shelf == "left") "bottom" else "left"
         }
         val hideIdx = out.size
         out += Row("Hidden apps", if (prefs.hiddenApps.isEmpty()) "None" else "${prefs.hiddenApps.size} hidden", false) { pickHidden(hideIdx) }
-        out += Row("App icons", if (prefs.galaxyIcons) "Galaxy style" else "Each app's own", true) { prefs.galaxyIcons = !prefs.galaxyIcons }
+        out += Row("App icons", if (prefs.galaxyIcons) "Galaxy style" else "Original", true) { prefs.galaxyIcons = !prefs.galaxyIcons }
         val bgIdx = out.size
         out += Row("Background", Themes.wallpaperName(Themes.resolve(prefs.wallpaper, Themes.liteFor(this, prefs.animations), prefs.rotateMin)), false) { pickBackground(bgIdx) }
         val lite = Themes.liteFor(this, prefs.animations)
@@ -199,20 +199,20 @@ class SettingsActivity : AppCompatActivity() {
             }
         }
         if (wp == "stars" || wp == "rotate" || (!lite && (wp == "trace" || wp == "aurora" || Themes.isPicture(wp) || Themes.isSeason(wp)))) {
-            out += Row("Background motion", motionName(prefs.motion), true) {
+            out += Row("Background movement", motionName(prefs.motion), true) {
                 prefs.motion = Themes.next(motionModes, prefs.motion)
             }
         }
-        out += Row("Animations", if (prefs.animations == "auto") "Auto (" + (if (Themes.isLite(this)) "lighter" else "full") + " for this stick)" else Themes.animationsName(prefs.animations), true) {
+        out += Row("Screen effects", if (prefs.animations == "auto") "Automatic (" + (if (Themes.isLite(this)) "fewer effects" else "full effects") + ")" else Themes.animationsName(prefs.animations), true) {
             prefs.animations = Themes.next(Themes.animationKeys, prefs.animations)
         }
-        out += Row("Close apps when I come back", if (prefs.closeApps == "auto") "Auto (" + (if (AppCloser.enabled(this, "auto")) "on" else "off") + " for this stick)" else if (prefs.closeApps == "on") "On" else "Off", true) {
+        out += Row("Clean up when I return home", if (prefs.closeApps == "auto") "Automatic (" + (if (AppCloser.enabled(this, "auto")) "on" else "off") + ")" else if (prefs.closeApps == "on") "On" else "Off", true) {
             prefs.closeApps = Themes.next(listOf("auto", "on", "off"), prefs.closeApps)
         }
-        out += Row("Quiet mode", if (prefs.quietMode) "On" else "Off", true) {
+        out += Row("Hide extras when idle", if (prefs.quietMode) "On" else "Off", true) {
             prefs.quietMode = !prefs.quietMode
         }
-        out += Row("Night dimming", nightName(prefs.nightStart), true) {
+        out += Row("Dim at night", nightName(prefs.nightStart), true) {
             val i = nightHours.indexOf(prefs.nightStart)
             prefs.nightStart = nightHours[(i + 1) % nightHours.size]
         }
@@ -221,7 +221,7 @@ class SettingsActivity : AppCompatActivity() {
         out += Row("Screensaver", if (prefs.screensaver) "On" else "Off", true) {
             prefs.screensaver = !prefs.screensaver
         }
-        out += Row("Open on startup", if (prefs.autoStart) "On" else "Off", true) {
+        out += Row("Start with the TV", if (prefs.autoStart) "On" else "Off", true) {
             prefs.autoStart = !prefs.autoStart
         }
         out += Row("Guided maintenance", "Start", false) { startActivity(Intent(this, CleanupActivity::class.java)) }
@@ -255,6 +255,33 @@ class SettingsActivity : AppCompatActivity() {
         list.post { list.getChildAt(idx)?.requestFocus() }
     }
 
+    /** One short, plain sentence under a row, so nobody has to guess what it does. */
+    private val hints = mapOf(
+        "Your name" to "Shown in the greeting on the home screen.",
+        "Highlight color" to "The color of the glow around whatever you select.",
+        "Sports scores" to "Live scores along the bottom of the screen.",
+        "My teams" to "Pick your teams so their games show first.",
+        "Where the apps go" to "Where your app icons sit on the home screen.",
+        "Hidden apps" to "Apps you do not want to see on the home screen.",
+        "App icons" to "Galaxy style is our matching set. Original is the icon each app comes with.",
+        "Background" to "The picture behind everything. Seasonal changes with the holidays.",
+        "Preview season" to "Try the other holiday pictures. It returns to today's picture after 30 minutes.",
+        "Background movement" to "How much moves in the background. Choose Still if the picture stutters.",
+        "Screen effects" to "Automatic gives older sticks fewer effects so they stay smooth. Off stops all movement.",
+        "Clean up when I return home" to "When you come back from another app, apps left running are closed so the stick stays fast. Your VPN stays on.",
+        "Hide extras when idle" to "After 30 seconds with no button pressed, the buttons and scores fade so the picture is clean. Press any button to bring them back.",
+        "Dim at night" to "Lowers the brightness from the hour you pick until 6 AM, so the screen is not harsh in a dark room.",
+        "Weather" to "Shows the temperature under the clock. Enter your ZIP code.",
+        "Screensaver" to "After about 5 minutes with nothing pressed, the screen shows a dimmed picture and a slow clock.",
+        "Start with the TV" to "Opens Galaxy Media by itself when the stick turns on.",
+        "Guided maintenance" to "Step-by-step tips to keep the stick fast.",
+        "Maintenance reminder" to "How often to remind you about those tips.",
+        "Text size" to "Makes the writing bigger or smaller.",
+        "High contrast" to "Stronger colors and borders, easier to see.",
+        "Reset my look" to "Puts colors, background and sizes back to normal.",
+        "Setup & updates" to "Install or update the apps and Galaxy Media."
+    )
+
     private fun makeRow(r: Row, index: Int): View {
         val box = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -265,9 +292,21 @@ class SettingsActivity : AppCompatActivity() {
         }
         val label = TextView(this).apply { text = r.label; textSize = 20f * prefs.textScale; setTextColor(textColor) }
         val value = TextView(this).apply { text = r.value; textSize = 20f * prefs.textScale; setTextColor(accent); gravity = Gravity.END }
-        box.addView(label, LinearLayout.LayoutParams(0, WRAP, 1f))
+        val hint = hints[r.label]
+        val labelCol = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        labelCol.addView(label)
+        val hintTv = if (hint == null) null else TextView(this).apply {
+            text = hint
+            textSize = 13f * prefs.textScale
+            setTextColor(mutedColor)
+            setPadding(0, dp(2), dp(16), 0)
+        }
+        if (hintTv != null) labelCol.addView(hintTv)
+        box.addView(labelCol, LinearLayout.LayoutParams(0, WRAP, 1f))
         box.addView(value, LinearLayout.LayoutParams(WRAP, WRAP))
-        style(box, 14f, listOf(label to textColor, value to accent))
+        val styled = mutableListOf(label to textColor, value to accent)
+        if (hintTv != null) styled += hintTv to mutedColor
+        style(box, 14f, styled)
         box.setOnClickListener {
             r.onClick()
             if (r.rerender) render(index)

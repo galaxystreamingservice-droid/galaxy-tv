@@ -36,6 +36,8 @@ version (own app id, pre-release only) for trying out making Galaxy Media the Ho
 - **Galaxy-style shelf icons:** a picture named `<package>.webp` in `app/src/main/assets/icons` replaces that app's own icon on the shelf (TiviMate, XC7, SmartTube so far),
   matching the Galaxy Theater icon. Settings > App icons switches back to each app's own. Art script: `icons.py` in galaxy-seasonal-art.zip.
 - **Shelf notes:** an optional `"tag"` on an app in the settings file (for example `"tag": "Best choice"`) shows as a small note under the name on the shelf. No app update needed to change the wording.
+- **Plain-language Settings (v0.13.3):** rows were reworded (for example "Close apps when I come back" is now "Clean up when I return home", "Quiet mode" is "Hide extras when idle") and each has a one-sentence hint. The hints live in the `hints` map in `SettingsActivity.kt`, keyed by row label.
+- **Settings in plain words (v0.13.4):** every Settings row has one short line under it explaining what it does; confusing names were replaced (Screen effects, Background movement, Clean up when I return home, Hide extras when idle, Dim at night). On seasonal backgrounds the game ticker takes the season's colour. St. Patrick's has falling clovers and rising sparks.
 - **Screensaver:** `GalaxyDream` is a system screensaver showing today's picture, dimmed, with a slow-moving clock. Set it from the laptop with
   `.\galaxy-maintain.ps1 -Ip <ip> -Screensaver Galaxy` (undo with `-Screensaver Amazon`). `-RemoveAmazonSaver` also switches off Amazon's screensaver apps.
 - **Settings shortcuts:** every "Open settings" button goes through one safe opener (`SystemSettings`). Fire OS 8 answers the

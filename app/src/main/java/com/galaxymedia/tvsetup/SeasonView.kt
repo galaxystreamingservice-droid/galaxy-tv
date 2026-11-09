@@ -412,6 +412,23 @@ private object Sprites {
                 c.drawPath(path, p)
                 c.drawOval(RectF(28f, 22f, 36f, 42f), p)
             }
+            "clover" -> {
+                val leaf = Path()
+                leaf.moveTo(32f, 56f)
+                leaf.cubicTo(4f, 36f, 6f, 10f, 24f, 10f)
+                leaf.cubicTo(30f, 10f, 32f, 16f, 32f, 20f)
+                leaf.cubicTo(32f, 16f, 34f, 10f, 40f, 10f)
+                leaf.cubicTo(58f, 10f, 60f, 36f, 32f, 56f)
+                leaf.close()
+                for (k in 0 until 4) {
+                    c.save()
+                    c.rotate(k * 90f, 32f, 32f)
+                    c.translate(0f, -12f)
+                    c.scale(0.5f, 0.5f, 32f, 32f)
+                    c.drawPath(leaf, p)
+                    c.restore()
+                }
+            }
             "petal" -> c.drawOval(RectF(24f, 8f, 40f, 56f), p)
             "spark" -> {
                 val path = Path()

@@ -117,9 +117,9 @@ object Themes {
     val animationKeys = listOf("auto", "on", "off")
 
     fun animationsName(k: String): String = when (k) {
-        "on" -> "On (full)"
-        "off" -> "Off (still)"
-        else -> "Auto"
+        "on" -> "Always on"
+        "off" -> "Off (nothing moves)"
+        else -> "Automatic"
     }
 
     /** Lower-end handling: "auto" follows the stick's model, "on" and "off" never hide a background. */

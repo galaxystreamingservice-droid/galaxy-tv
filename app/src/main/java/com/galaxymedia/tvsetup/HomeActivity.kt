@@ -773,6 +773,12 @@ class HomeActivity : AppCompatActivity() {
             seasonGreeting.text = Seasons.greeting(this, scene)
             seasonGreeting.setTextColor(col)
             seasonGreeting.setShadowLayer(dpf(12f), 0f, 0f, col)
+            if (!prefs.highContrast) sportsBox.background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dpf(14f)
+                setColor(Color.parseColor("#D90B0710"))
+                setStroke(dp(2), col)
+            }
             for (v in listOf(liveView, tonightView)) {
                 v.background = plate(col)
                 v.setPadding(dp(30), dp(12), dp(30), dp(12))
@@ -780,6 +786,12 @@ class HomeActivity : AppCompatActivity() {
             }
         } else {
             seasonGreeting.text = ""
+            sportsBox.background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dpf(14f)
+                setColor(if (prefs.highContrast) Color.BLACK else Color.parseColor("#CC0A1522"))
+                setStroke(if (prefs.highContrast) dp(2) else dp(1), if (prefs.highContrast) Color.WHITE else Color.parseColor("#33FFFFFF"))
+            }
             for (v in listOf(liveView, tonightView)) {
                 v.background = null
                 v.setPadding(0, dp(14), 0, 0)
@@ -1063,6 +1075,7 @@ class HomeActivity : AppCompatActivity() {
             shelfRow.addView(tile, tileParams(tileW))
         }
         hintView.text = if (settings == null) "Press the gear, then Setup & updates, to add your settings link." else ""
+        hintView.visibility = if (hintView.text.isEmpty()) View.GONE else View.VISIBLE
         if (focusedTag != null) shelfRow.findViewWithTag<View>(focusedTag)?.requestFocus()
     }
 
