@@ -1040,10 +1040,11 @@ class HomeActivity : AppCompatActivity() {
         if (upHours >= 48 && System.currentTimeMillis() > prefs.restartSnoozeUntil) chips += ChipSpec("Restart for best speed", accent) { askRestart(upHours) }
         if (prefs.cleanupDue()) chips += ChipSpec("Maintenance due", accent) { openCleanup() }
         val contactChip = ChipSpec("Contact", mutedColor) { openContact() }
+        val tipsChip = ChipSpec("Tips", mutedColor) { startActivity(Intent(this, TipsActivity::class.java)) }
 
         // Top right: up to three passing notices (updates, maintenance...), then Contact and the gear.
         // The renewal and VPN chips live under the greeting, top left, away from the picture.
-        val shownChips = chips.take(3) + contactChip
+        val shownChips = chips.take(2) + tipsChip + contactChip
         val sig = shownChips.joinToString("|") { it.text + it.color } + "#" + glassTint
         if (sig == chipSignature && chipRow.childCount > 0) return
         chipSignature = sig

@@ -135,6 +135,17 @@ class PayActivity : AppCompatActivity() {
                 text = m.optString("label"); textSize = 20f; setTextColor(Color.WHITE); setTypeface(null, Typeface.BOLD)
                 gravity = Gravity.CENTER
             })
+            // How-to line ABOVE the code. Zelle gets a default, because scanning its code with the phone
+            // camera opens the Zelle app instead of the person's bank. "steps" in the codes file overrides it.
+            val isZelle = m.optString("label").contains("zelle", ignoreCase = true)
+            val customSteps = m.optString("steps")
+            val steps = customSteps.ifBlank {
+                if (isZelle) "Don't use your phone camera. Open your bank's app, go to Zelle, tap the QR code icon, then scan this code." else ""
+            }
+            if (steps.isNotBlank()) card.addView(TextView(this).apply {
+                text = steps; textSize = 15f; setTextColor(Color.parseColor("#FFE08A")); gravity = Gravity.CENTER
+                setTypeface(null, Typeface.BOLD)
+            }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(4) })
             val qr = m.optString("qr")
             if (qr.isNotBlank()) {
                 val bmp = try {
@@ -149,8 +160,11 @@ class PayActivity : AppCompatActivity() {
                     adjustViewBounds = true
                 }, LinearLayout.LayoutParams(dp(qrDp), dp(qrDp)).apply { topMargin = dp(6); bottomMargin = dp(6) })
             }
-            card.addView(TextView(this).apply {
-                text = m.optString("note"); textSize = 15f; setTextColor(Color.parseColor("#C9D6E8")); gravity = Gravity.CENTER
+            // The old Zelle note ("scan with your camera...") contradicts the steps above, so it is dropped
+            // when the default Zelle steps are shown.
+            val note = if (isZelle && customSteps.isBlank()) "" else m.optString("note")
+            if (note.isNotBlank()) card.addView(TextView(this).apply {
+                text = note; textSize = 15f; setTextColor(Color.parseColor("#C9D6E8")); gravity = Gravity.CENTER
             })
             row.addView(card, LinearLayout.LayoutParams(0, -2, 1f).apply { setMargins(dp(5), 0, dp(5), 0) })
         }

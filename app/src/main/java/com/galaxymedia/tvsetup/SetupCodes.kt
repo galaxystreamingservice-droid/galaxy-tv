@@ -41,6 +41,21 @@ object SetupCodes {
         PaymentResult(null, true)          // reached it, but could not read it
     }
 
+    /** The "_tips" block of the codes file: {"intro": "...", "items": [{"title","note","url"}]}. Blocking. */
+    fun tips(): PaymentResult = try {
+        val conn = (URL(CODES_URL).openConnection() as HttpURLConnection).apply {
+            connectTimeout = 8000
+            readTimeout = 8000
+            setRequestProperty("User-Agent", "galaxy-media")
+        }
+        val body = conn.inputStream.bufferedReader().use { it.readText() }
+        PaymentResult(JSONObject(body).optJSONObject("_tips"), true)
+    } catch (e: java.io.IOException) {
+        PaymentResult(null, false)
+    } catch (e: Exception) {
+        PaymentResult(null, true)
+    }
+
     /** Blocking. Call from a background thread. */
     fun resolve(input: String): Result {
         val raw = input.trim()

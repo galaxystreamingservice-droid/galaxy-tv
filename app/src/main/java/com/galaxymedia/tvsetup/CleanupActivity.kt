@@ -238,12 +238,13 @@ class CleanupActivity : AppCompatActivity() {
         buttons.addView(button(if (last) "Done" else "Next") {
             if (last) finishCleanup() else { step++; render() }
         }, buttonParams())
-        if (step == 0) buttons.addView(button("Remind me in a week") {
+        body.addView(buttons, LinearLayout.LayoutParams(WRAP, WRAP))
+        // "Remind me in a week" gets its own row, so the main row never squeezes it into a tall column.
+        if (step == 0) body.addView(button("Remind me in a week") {
             prefs.cleanupSnoozeUntil = System.currentTimeMillis() + 7 * 86_400_000L
             Toast.makeText(this, "OK, I'll remind you in a week.", Toast.LENGTH_LONG).show()
             finish()
-        }, buttonParams())
-        body.addView(buttons, LinearLayout.LayoutParams(WRAP, WRAP))
+        }, LinearLayout.LayoutParams(WRAP, WRAP).apply { topMargin = dp(4) })
         val ft = focusTarget
         ft?.post { ft.requestFocus() }
     }
@@ -278,6 +279,8 @@ class CleanupActivity : AppCompatActivity() {
             setTextColor(textColor)
             gravity = Gravity.CENTER
             setPadding(dp(24), dp(14), dp(24), dp(14))
+            maxLines = 1
+            isSingleLine = true
             isFocusable = true
             isClickable = true
         }

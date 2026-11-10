@@ -15,7 +15,7 @@
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
 
     <application
-        android:label="@string/app_name"
+        android:label="Galaxy Media"
         android:icon="@drawable/ic_launcher"
         android:banner="@drawable/banner"
         android:theme="@style/Theme.GalaxyTV"
@@ -52,6 +52,11 @@
 
         <activity
             android:name=".ContactActivity"
+            android:exported="false"
+            android:screenOrientation="landscape" />
+
+        <activity
+            android:name=".TipsActivity"
             android:exported="false"
             android:screenOrientation="landscape" />
 
