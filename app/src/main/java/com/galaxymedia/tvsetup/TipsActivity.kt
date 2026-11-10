@@ -29,7 +29,7 @@ class TipsActivity : Activity() {
     private var accent = Color.parseColor("#22D3EE")
     private val bg = Color.parseColor("#060A16")
     private val card = Color.parseColor("#141B3A")
-    private val text = Color.parseColor("#EAF6FF")
+    private val textColor = Color.parseColor("#EAF6FF")
     private val muted = Color.parseColor("#9FB8C8")
     private lateinit var list: LinearLayout
     private lateinit var intro: TextView
@@ -57,7 +57,7 @@ class TipsActivity : Activity() {
             setPadding(dp(56), dp(32), dp(56), dp(32))
         }
         body.addView(TextView(this).apply {
-            text = "Tips & tricks"; textSize = 32f * prefs.textScale; setTextColor(text); setTypeface(null, Typeface.BOLD)
+            text = "Tips & tricks"; textSize = 32f * prefs.textScale; setTextColor(textColor); setTypeface(null, Typeface.BOLD)
         })
         intro = TextView(this).apply {
             text = "Loading…"; textSize = 18f * prefs.textScale; setTextColor(muted); setPadding(0, dp(6), 0, dp(16))
@@ -121,7 +121,7 @@ class TipsActivity : Activity() {
             }, LinearLayout.LayoutParams(dp(162), dp(162)))
         }
         t.addView(TextView(this).apply {
-            text = title; textSize = 20f * prefs.textScale; setTextColor(text); setTypeface(null, Typeface.BOLD)
+            text = title; textSize = 20f * prefs.textScale; setTextColor(textColor); setTypeface(null, Typeface.BOLD)
             gravity = Gravity.CENTER; setPadding(0, dp(10), 0, 0)
         })
         if (note.isNotBlank()) t.addView(TextView(this).apply {
