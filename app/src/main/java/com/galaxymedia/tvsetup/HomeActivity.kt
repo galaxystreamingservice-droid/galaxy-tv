@@ -135,14 +135,16 @@ class HomeActivity : AppCompatActivity() {
     private val lite: Boolean get() = Themes.liteFor(this, prefs.animations)
 
     /** The wallpaper actually shown: lower-end sticks never get the moving-light or heavy ones. */
-    private fun wallpaperNow(): String = Themes.resolve(prefs.wallpaper, lite, prefs.rotateMin, prefs.heavyBackgrounds())
+    private fun wallpaperNow(): String = Themes.resolve(prefs.wallpaper, lite, prefs.rotateMin,
+        if (prefs.animations == "on") emptySet() else prefs.heavyBackgrounds())
 
     /** Pictures stay still on lower-end sticks. */
     private fun motionNow(): String {
         val wp = wallpaperNow()
         if (prefs.animations == "off") return "off"
         if (lite && (Themes.isPicture(wp) || Themes.isSeason(wp))) return "off"
-        if (Themes.isSeason(wp) && wp in prefs.heavyBackgrounds()) return "off"   // measured rough on this stick: show the still
+        // Measured rough on this stick: show the still, unless Screen effects is set to "Always on".
+        if (prefs.animations != "on" && Themes.isSeason(wp) && wp in prefs.heavyBackgrounds()) return "off"
         return prefs.motion
     }
 
