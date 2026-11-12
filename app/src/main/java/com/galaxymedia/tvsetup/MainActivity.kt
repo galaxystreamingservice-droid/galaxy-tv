@@ -60,6 +60,7 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.btnInstall).setOnClickListener { startInstalls() }
         findViewById<Button>(R.id.btnSelf).setOnClickListener { selfUpdate() }
         findViewById<Button>(R.id.btnSelf).text = "Update Galaxy Media"
+        findViewById<Button>(R.id.btnUrl).text = "Enter setup code"
         findViewById<Button>(R.id.btnDiag).setOnClickListener { showDiagnostics() }
         findViewById<Button>(R.id.btnUrl).setOnClickListener { askForSettingsUrl() }
         findViewById<Button>(R.id.btnWifi).setOnClickListener { SystemSettings.open(this, SystemSettings.Target.WIFI, null, "Settings › Network") }

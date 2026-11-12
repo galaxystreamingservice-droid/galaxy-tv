@@ -35,15 +35,10 @@ class TipsActivity : Activity() {
     private lateinit var intro: TextView
 
     private val defaults = listOf(
-        "Setup" to "From a fresh Fire TV to all your apps",
-        "Your home screen" to "What each button and chip does",
-        "Maintenance" to "Keep the stick fast, step by step",
-        "Updates" to "Update Galaxy Media and your apps",
-        "WorldVPN" to "Sign in and turn the VPN on",
-        "Galaxy Theater" to "Movies and shows on demand",
-        "Galaxy 2.0" to "Live TV, sports search, multi-screen",
-        "TiviMate" to "The guide, favorites, multi-view",
-        "Send me a photo" to "When something isn't working"
+        "Galaxy Media basics" to "Home screen, the menu, settings and updates",
+        "Keep it running" to "Maintenance, resetting an app, quick fixes",
+        "Live TV with Galaxy 2.0" to "WorldVPN, live TV, sports search, multi-screen",
+        "TiviMate and movies" to "TiviMate, then Galaxy Theater"
     )
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
@@ -57,7 +52,7 @@ class TipsActivity : Activity() {
             setPadding(dp(56), dp(32), dp(56), dp(32))
         }
         body.addView(TextView(this).apply {
-            text = "Tips & tricks"; textSize = 32f * prefs.textScale; setTextColor(textColor); setTypeface(null, Typeface.BOLD)
+            text = "How-to videos"; textSize = 32f * prefs.textScale; setTextColor(textColor); setTypeface(null, Typeface.BOLD)
         })
         intro = TextView(this).apply {
             text = "Loading…"; textSize = 18f * prefs.textScale; setTextColor(muted); setPadding(0, dp(6), 0, dp(16))
