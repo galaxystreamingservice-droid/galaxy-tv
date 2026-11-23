@@ -225,7 +225,6 @@ class SettingsActivity : AppCompatActivity() {
         out += Row("Start with the TV", if (prefs.autoStart) "On" else "Off", true) {
             prefs.autoStart = !prefs.autoStart
         }
-        out += Row("Guided maintenance", "Start", false) { startActivity(Intent(this, CleanupActivity::class.java)) }
         out += Row("Maintenance reminder", cleanupName(prefs.cleanupEvery), true) {
             prefs.cleanupEvery = Themes.next(listOf("off", "weekly", "monthly"), prefs.cleanupEvery)
         }
@@ -283,7 +282,6 @@ class SettingsActivity : AppCompatActivity() {
         "Weather" to "Shows the temperature under the clock. Enter your ZIP code.",
         "Screensaver" to "After about 5 minutes with nothing pressed, the screen shows a dimmed picture and a slow clock.",
         "Start with the TV" to "Opens Galaxy Media by itself when the stick turns on.",
-        "Guided maintenance" to "Step-by-step tips to keep the stick fast.",
         "Maintenance reminder" to "How often to remind you about those tips.",
         "Text size" to "Makes the writing bigger or smaller.",
         "High contrast" to "Stronger colors and borders, easier to see.",

@@ -34,38 +34,38 @@ import java.util.Locale
 class CleanupActivity : AppCompatActivity() {
 
     /** kind: "space" (storage), "cache" (per-app cache) or "info" (plain settings card). */
-    private class Step(val kind: String, val title: String, val path: String, val todo: List<String>, val note: String)
+    private class Step(val kind: String, val title: String, val path: String, val todo: List<String>, val note: String, val video: String = "")
 
     private val steps = listOf(
         Step(
             "space", "Free up space",
             "Settings › Applications › Manage Installed Applications",
             listOf("Uninstall apps nobody uses", "Downloader › Files: delete old .apk files"),
-            "A full stick is a slow stick. Aim to keep a couple of GB free."
+            "A full stick is a slow stick. Aim to keep a couple of GB free.", "storage"
         ),
         Step(
             "cache", "Clear app caches",
             "Settings › Applications › Manage Installed Applications › (app) › Clear cache",
             emptyList(),
-            "Only press Clear cache. Never press Clear data: that logs you out of TiviMate, XC7 and the others."
+            "Only press Clear cache. Never press Clear data: that logs you out of TiviMate, XC7 and the others.", "clear_cache"
         ),
         Step(
             "info", "Turn off video autoplay",
             "Settings › Preferences › Featured Content",
             listOf("Allow Video Autoplay: OFF", "Allow Audio Autoplay: OFF"),
-            "Stops the loud auto-playing ads on the Fire TV home screen."
+            "Stops the loud auto-playing ads on the Fire TV home screen.", "autoplay"
         ),
         Step(
             "info", "Privacy settings",
             "Settings › Preferences › Privacy Settings",
             listOf("Device Usage Data: OFF", "Collect App Usage Data: OFF", "Interest-based Ads: OFF"),
-            "Interest-based Ads is near the bottom of the list. Your apps and channels are not touched."
+            "Interest-based Ads is near the bottom of the list. Your apps and channels are not touched.", "privacy"
         ),
         Step(
             "info", "Update and restart",
             "Settings › My Fire TV",
             listOf("About › Check for Updates", "Restart (do this last)"),
-            "Install any system update first, then restart. A restart every week or two keeps the stick quick."
+            "Install any system update first, then restart. A restart every week or two keeps the stick quick.", "restart_stick"
         )
     )
 
@@ -112,6 +112,7 @@ class CleanupActivity : AppCompatActivity() {
         root.addView(scroll, FrameLayout.LayoutParams(MATCH, MATCH))
         setContentView(root)
         render()
+        HelpVideos.load(this) { render() }
     }
 
     private fun text(t: String, size: Float, color: Int, bold: Boolean = false, top: Int = 0): TextView =
@@ -210,7 +211,14 @@ class CleanupActivity : AppCompatActivity() {
             s.todo.forEach { card.addView(text("→  $it", 22f, accent, bold = true, top = 6)) }
         }
         card.addView(text(s.note, 16f, mutedColor, top = 18))
-        body.addView(card, LinearLayout.LayoutParams(dp(760), WRAP).apply { topMargin = dp(20) })
+        val qr = HelpVideos.panel(this, s.video, prefs.textScale, mutedColor, dp(150))
+        if (qr == null) body.addView(card, LinearLayout.LayoutParams(dp(760), WRAP).apply { topMargin = dp(20) })
+        else {
+            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+            row.addView(card, LinearLayout.LayoutParams(dp(600), WRAP))
+            row.addView(qr, LinearLayout.LayoutParams(WRAP, WRAP).apply { marginStart = dp(28) })
+            body.addView(row, LinearLayout.LayoutParams(WRAP, WRAP).apply { topMargin = dp(20) })
+        }
 
         val buttons = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
