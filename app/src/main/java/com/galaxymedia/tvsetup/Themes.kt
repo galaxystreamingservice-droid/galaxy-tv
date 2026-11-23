@@ -68,7 +68,7 @@ object Themes {
     val previewScenes = listOf("", "thanksgiving", "halloween", "christmas", "newyear", "valentines", "stpatricks", "easter", "july4", "galaxy")
 
     /** The backgrounds on offer: Seasonal (auto), two that move (Starfield, Aurora) and two that stay still (Nebula, Galaxy G). */
-    private val allWallpapers = listOf("season", "galaxy_g", "stars", "aurora", "nebula")
+    private val allWallpapers = listOf("season", "stadium", "galaxy_g", "stars", "aurora", "nebula")
 
     /** What actually shows: lower-end sticks get the starfield in place of the heavy ones. */
     fun effective(key: String, lite: Boolean): String = if (lite && key in heavyKeys) "stars" else key
@@ -82,7 +82,7 @@ object Themes {
 
     /** The wallpaper to show now. "rotate" picks from the pool by wall-clock time, so it keeps going across restarts. */
     /** Backgrounds drawn once and left still, so there is nothing to measure. */
-    val sceneKeys = listOf("nebula", "sunset", "ocean", "city", "grid", "mountains")
+    val sceneKeys = listOf("stadium", "nebula", "sunset", "ocean", "city", "grid", "mountains")
 
     fun resolve(key: String, lite: Boolean, minutes: Int, skip: Set<String> = emptySet()): String {
         // The old Rotate and the retired backgrounds now show as Seasonal.
@@ -96,6 +96,7 @@ object Themes {
     fun wallpaperName(key: String): String = when (key) {
         "season" -> "Seasonal (changes with the holidays)"
         "galaxy_g" -> "Galaxy G"
+        "stadium" -> "Sports stadium (scores on the big screen)"
         "rotate" -> "Seasonal (changes with the holidays)"
         "pic_tv_ring" -> "TV in ring"
         "pic_shield" -> "Neon shield"

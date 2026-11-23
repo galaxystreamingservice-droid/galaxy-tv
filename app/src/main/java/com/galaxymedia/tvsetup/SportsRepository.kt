@@ -21,7 +21,10 @@ data class Game(
     val homeKey: String = "",
     val awayKey: String = "",
     val homeName: String = "",
-    val awayName: String = ""
+    val awayName: String = "",
+    val homeScore: String = "",
+    val awayScore: String = "",
+    val detail: String = ""        // "Q2 5:20", "Final", or the start time
 )
 
 /**
@@ -117,6 +120,7 @@ object SportsRepository {
             var awayKey = ""
             var homeName = ""
             var awayName = ""
+            var hs = ""; var aws = ""; var det = ""
             if (l.label == "UFC") {
                 val name = ev.optString("shortName", "").ifBlank { ev.optString("name", "") }
                 if (name.isBlank()) continue
@@ -145,12 +149,14 @@ object SportsRepository {
                 awayKey = "${l.label}:$awayAbbr"
                 homeName = home
                 awayName = away
+                hs = homeScore; aws = awayScore
+                det = if (state == "pre") whenText(start) else if (state == "post") detail.ifBlank { "Final" } else detail
                 text = when (state) {
                     "pre" -> "$away @ $home · ${whenText(start)}"
                     else -> "$away $awayScore, $home $homeScore · ${if (state == "post") detail.ifBlank { "Final" } else detail}"
                 }
             }
-            out += Game(l.label, text, state, start, homeKey, awayKey, homeName, awayName)
+            out += Game(l.label, text, state, start, homeKey, awayKey, homeName, awayName, hs, aws, det)
         }
         return out
     }

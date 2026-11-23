@@ -69,8 +69,10 @@ object WeatherRepository {
             val code = cur.optInt("weather_code", -1)
             text = "$t°${if (f) "F" else "C"} ${describe(code)}"
             kind = when (code) {
-                in 51..67, in 80..82, in 95..99 -> "rain"
+                in 95..99 -> "storm"
+                in 51..67, in 80..82 -> "rain"
                 in 71..77, 85, 86 -> "snow"
+                45, 48 -> "fog"
                 else -> ""
             }
         } catch (e: Exception) {

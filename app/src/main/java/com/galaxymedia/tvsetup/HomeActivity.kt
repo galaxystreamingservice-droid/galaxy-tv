@@ -161,10 +161,17 @@ class HomeActivity : AppCompatActivity() {
         val cal = java.util.Calendar.getInstance()
         val id = StoryStages.stageFor(cal) ?: return null
         // Jan 1: the midnight launch plays once (live at midnight, or the first time Home shows that day), then the smoke trail.
-        if (id == "ny_jan01" && prefs.launchYear != cal.get(java.util.Calendar.YEAR) && motionNow() != "off" &&
-            StoryStages.exists(this, "ny_launch")) return "ny_launch"
-        return if (StoryStages.exists(this, id)) id else null
+        val year = cal.get(java.util.Calendar.YEAR)
+        if (id == "ny_jan01" && prefs.launchYear != year && motionNow() != "off") {
+            val launch = yearly("ny_launch", year)
+            if (StoryStages.exists(this, launch)) return launch
+        }
+        val today = if (id == "ny_jan01") yearly(id, year) else id
+        return if (StoryStages.exists(this, today)) today else null
     }
+
+    /** The clips that show the year on the tower screen come one per year (ny_launch_2028 ...); falls back to the plain clip. */
+    private fun yearly(id: String, year: Int): String = if (StoryStages.exists(this, "${id}_$year")) "${id}_$year" else id
 
     /** Today, or during the Season test the pretend date of the scene on screen. */
     private fun nowCal(): java.util.Calendar =
@@ -188,6 +195,17 @@ class HomeActivity : AppCompatActivity() {
     private lateinit var renewBox: LinearLayout
     private lateinit var topInfo: TextView
     private lateinit var countdownView: TextView
+    private lateinit var seasonSmall: TextView
+    private var stadiumView: StadiumView? = null
+    // Premium look (v0.14): black, champagne gold, ivory; bundled fonts. High contrast keeps the plain system look.
+    private val premium: Boolean get() = !prefs.highContrast
+    private val gold = Color.parseColor("#D6B87A")
+    private val goldHi = Color.parseColor("#F0DAA8")
+    private val ivory = Color.parseColor("#F4EEE2")
+    private val serifFont by lazy { font("Cardo-Regular") }
+    private val serifBoldFont by lazy { font("Cardo-Bold") }
+    private val capsFont by lazy { font("Montserrat-Medium") }
+    private fun font(name: String): Typeface = try { Typeface.createFromAsset(assets, "fonts/$name.ttf") } catch (e: Exception) { Typeface.DEFAULT }
     private lateinit var screenRoot: FrameLayout
     private var decoView: DecoView? = null
     private var renewSignature = ""
@@ -223,6 +241,7 @@ class HomeActivity : AppCompatActivity() {
         private const val NIGHT_END_HOUR = 6
         private const val SAVER_AFTER_MS = 5 * 60_000L
         private const val SAVER_MOVE_MS = 60_000L
+        private const val SCENE_ZOOM = 1.2f
     }
 
     // Palette from the design canvas
@@ -518,6 +537,10 @@ class HomeActivity : AppCompatActivity() {
             setTextColor(textColor)
         }
         greetingView = TextView(this).apply { textSize = 18f * prefs.textScale; setTextColor(mutedColor) }
+        if (premium) {
+            clock.typeface = serifBoldFont; clock.textSize = 46f * prefs.textScale; clock.setTextColor(ivory)
+            greetingView.typeface = serifFont; greetingView.textSize = 22f * prefs.textScale; greetingView.setTextColor(ivory)
+        }
         if (!prefs.highContrast) {
             clock.setShadowLayer(dpf(8f), 0f, dpf(2f), Color.BLACK)          // stays readable over any picture
             greetingView.setShadowLayer(dpf(6f), 0f, dpf(1f), Color.BLACK)
@@ -526,12 +549,22 @@ class HomeActivity : AppCompatActivity() {
         left.addView(greetingView)
         // Date and weather sit under the greeting on every background (they used to be in the middle, hidden on pictures).
         topInfo = TextView(this).apply { textSize = 16f * prefs.textScale; setTextColor(mutedColor) }
+        if (premium) { topInfo.typeface = capsFont; topInfo.textSize = 13f * prefs.textScale; topInfo.letterSpacing = 0.14f; topInfo.setTextColor(gold); topInfo.isAllCaps = true }
         if (!prefs.highContrast) topInfo.setShadowLayer(dpf(6f), 0f, dpf(1f), Color.BLACK)
         left.addView(topInfo)
         // "3 days to Christmas" in the week before a holiday (Seasonal background only)
         countdownView = TextView(this).apply { textSize = 16f * prefs.textScale; setTypeface(null, Typeface.BOLD); visibility = View.GONE }
         if (!prefs.highContrast) countdownView.setShadowLayer(dpf(6f), 0f, dpf(1f), Color.BLACK)
+        if (premium) { countdownView.typeface = serifFont; countdownView.textSize = 19f * prefs.textScale }
         left.addView(countdownView)
+        // The holiday greeting ("HAPPY NEW YEAR") as a small gold line here, instead of the big banner over the picture.
+        seasonSmall = TextView(this).apply {
+            textSize = 12f * prefs.textScale; letterSpacing = 0.22f; isAllCaps = true; visibility = View.GONE
+            setTextColor(if (prefs.highContrast) textColor else gold)
+            if (premium) typeface = capsFont
+            if (!prefs.highContrast) setShadowLayer(dpf(6f), 0f, dpf(1f), Color.BLACK)
+        }
+        left.addView(seasonSmall, LinearLayout.LayoutParams(WRAP, WRAP).apply { topMargin = dp(4) })
         renewBox = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; clipChildren = false; clipToPadding = false }
         left.addView(renewBox, LinearLayout.LayoutParams(WRAP, WRAP).apply { topMargin = dp(10) })
         top.addView(left, LinearLayout.LayoutParams(0, WRAP, 1f))
@@ -668,6 +701,7 @@ class HomeActivity : AppCompatActivity() {
             }
             visibility = View.GONE
         }
+        if (premium) { sportsText.typeface = capsFont; sportsText.textSize = 15f * prefs.textScale; sportsText.letterSpacing = 0.06f; sportsText.setTextColor(ivory); sportsText.gravity = Gravity.CENTER }
         sportsBox.addView(sportsText, LinearLayout.LayoutParams(MATCH, WRAP))
         content.addView(sportsBox, LinearLayout.LayoutParams(MATCH, WRAP).apply { bottomMargin = dp(6) })
 
@@ -755,16 +789,20 @@ class HomeActivity : AppCompatActivity() {
     private fun updateSports() {
         val mode = prefs.sports
         val keys = prefs.myTeamKeys
-        val shown: List<Game> = when (mode) {
+        var shown: List<Game> = when (mode) {
             "off" -> emptyList()
             "my" -> SportsRepository.games.filter { it.homeKey in keys || it.awayKey in keys }
             else -> SportsRepository.games
         }
-        updateLive(if (mode == "off") null else SportsRepository.games.firstOrNull {
+        val stadium = stadiumView
+        val onBoard = if (stadium != null) boardGame() else null
+        stadium?.setBoard(boardFor(onBoard))
+        updateLive(if (mode == "off" || stadium != null) null else SportsRepository.games.firstOrNull {
             it.state == "in" && (it.homeKey in keys || it.awayKey in keys)
         })
-        updateTonight(if (mode == "my" && liveView.visibility != View.VISIBLE) shown else emptyList())
+        updateTonight(if (mode == "my" && stadium == null && liveView.visibility != View.VISIBLE) shown else emptyList())
         syncInfo()
+        if (onBoard != null) shown = shown.filter { it !== onBoard }   // the big screen has that one
         if (shown.isEmpty()) {
             sportsBox.visibility = View.GONE
             sportsSignature = ""
@@ -811,7 +849,7 @@ class HomeActivity : AppCompatActivity() {
             }
             val s2 = sb.length
             sb.append(g.league).append(" ")
-            sb.setSpan(ForegroundColorSpan(accent), s2, s2 + g.league.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            sb.setSpan(ForegroundColorSpan(if (premium) gold else accent), s2, s2 + g.league.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
             sb.append(g.text).append(" ")
         }
         return sb
@@ -835,7 +873,9 @@ class HomeActivity : AppCompatActivity() {
         val busy = liveView.visibility == View.VISIBLE || tonightView.visibility == View.VISIBLE
         val wp = wallpaperNow()
         infoView.visibility = View.GONE   // the date and weather now show under the greeting, top left
-        seasonGreeting.visibility = if (Themes.isSeason(wp) && !busy && seasonGreeting.text.isNotEmpty()) View.VISIBLE else View.GONE
+        seasonGreeting.visibility = View.GONE   // v0.14: no big banner over the scene; the greeting is the small gold line top left
+        seasonSmall.text = if (Themes.isSeason(wp)) seasonGreeting.text else ""
+        seasonSmall.visibility = if (seasonSmall.text.isNullOrEmpty()) View.GONE else View.VISIBLE
     }
 
     /** Seasonal backgrounds put the picture up top and the live bar (or the greeting) in the clear lane beneath it. */
@@ -858,12 +898,7 @@ class HomeActivity : AppCompatActivity() {
             seasonGreeting.text = Seasons.greeting(this, scene)
             seasonGreeting.setTextColor(col)
             seasonGreeting.setShadowLayer(dpf(12f), 0f, 0f, col)
-            if (!prefs.highContrast) sportsBox.background = GradientDrawable().apply {
-                shape = GradientDrawable.RECTANGLE
-                cornerRadius = dpf(14f)
-                setColor(Color.parseColor("#D90B0710"))
-                setStroke(dp(2), col)
-            }
+            if (!prefs.highContrast) sportsBox.background = null      // a quiet gold line, no box
             for (v in listOf(liveView, tonightView)) {
                 v.background = plate(col)
                 v.setPadding(dp(30), dp(12), dp(30), dp(12))
@@ -871,7 +906,7 @@ class HomeActivity : AppCompatActivity() {
             }
         } else {
             seasonGreeting.text = ""
-            sportsBox.background = GradientDrawable().apply {
+            if (premium) sportsBox.background = null else sportsBox.background = GradientDrawable().apply {
                 shape = GradientDrawable.RECTANGLE
                 cornerRadius = dpf(14f)
                 setColor(if (prefs.highContrast) Color.BLACK else Color.parseColor("#CC0A1522"))
@@ -927,15 +962,16 @@ class HomeActivity : AppCompatActivity() {
         }
         applyContentPadding()
         val story = storyNow()
-        val bgKey = wallpaperNow() + ":" + sceneNow() + ":" + (story ?: "") + ":" + motionNow() + ":" + WeatherRepository.kind + ":" + prefs.accent + ":" + prefs.edge + ":" + prefs.beam
+        val bgKey = wallpaperNow() + ":" + sceneNow() + ":" + (story ?: "") + ":" + motionNow() + ":" + WeatherRepository.kind + ":" + prefs.accent + ":" + prefs.edge + ":" + prefs.beam +
+            ":" + (if (wallpaperNow() == "stadium") (StadiumView.holidayFor(Calendar.getInstance()) ?: "") + prefs.tileDeco + lite else "")
         if (appliedBackground != bgKey) {
             appliedBackground = bgKey
             bgHolder.removeAllViews()
             val wp = wallpaperNow()
             val oldScene = story?.let { StoryStages.oldScene(it) }
-            val v: View? = if (oldScene != null) SeasonView(this, oldScene, if (StoryTest.active(prefs)) "normal" else motionNow(), WeatherRepository.kind)
+            val v: View? = if (oldScene != null) SeasonView(this, oldScene, if (StoryTest.active(prefs)) "normal" else motionNow(), seasonWeather())
                 else if (story != null) StoryVideoView(this, story, StoryTest.active(prefs) || motionNow() != "off",
-                    if (story == "ny_launch" && !StoryTest.active(prefs)) ({
+                    if (story.startsWith("ny_launch") && !StoryTest.active(prefs)) ({
                         prefs.launchYear = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
                         applyTheme()
                     }) else null) else when (wp) {
@@ -945,13 +981,17 @@ class HomeActivity : AppCompatActivity() {
                 }
                 "trace" -> LightTraceView(this, motionNow(), accent, Themes.beamColor(prefs.beam), if (prefs.edge == "wide") 42f else 18f)
                 "nebula", "sunset", "ocean", "city", "grid", "mountains" -> SceneView(this, wp, accent)
-                "season", "galaxy_g" -> SeasonView(this, sceneNow(), motionNow(), WeatherRepository.kind)
+                "season", "galaxy_g" -> SeasonView(this, sceneNow(), motionNow(), seasonWeather())
+                "stadium" -> StadiumView(this, !lite && motionNow() != "off", WeatherRepository.kind, prefs.tileDeco)
                 in Themes.pictureKeys -> PictureTraceView(this, wp, motionNow(), Themes.beamColor(prefs.beam))
                 "aurora" -> AuroraView(this, motionNow())
                 "plain" -> null
                 else -> StarfieldView(this, motionNow())
             }
             if (v != null) bgHolder.addView(v, FrameLayout.LayoutParams(MATCH, MATCH))
+            if (v is StoryVideoView && premium) enlargeScene(v)
+            stadiumView = v as? StadiumView
+            if (stadiumView != null) sportsSignature = ""     // the game moves onto the big screen
             pictureView = v as? PictureTraceView
             pictureView?.post { updatePictureZone() }
             if (bgShownOnce) {                       // fade the new background in instead of cutting to it
@@ -960,10 +1000,43 @@ class HomeActivity : AppCompatActivity() {
             }
             bgShownOnce = true
             startMeasure(wp, motionNow())
-            centerTitle.visibility = if (wp == "logo" || Themes.isPicture(wp) || Themes.isSeason(wp)) View.GONE else View.VISIBLE
+            centerTitle.visibility = if (wp == "logo" || wp == "stadium" || Themes.isPicture(wp) || Themes.isSeason(wp)) View.GONE else View.VISIBLE
             styleLane(sceneNow())
             syncInfo()
         }
+    }
+
+    /**
+     * v0.14: the holiday scene is the centre of attention. The clips keep their art in the top half, so the whole clip is
+     * shown about 20% larger, anchored at the top, with the art a little right of centre (clear of the clock).
+     */
+    private fun enlargeScene(v: View) {
+        fun apply() { v.pivotX = v.width * 0.62f; v.pivotY = 0f; v.scaleX = SCENE_ZOOM; v.scaleY = SCENE_ZOOM }
+        v.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> apply() }
+        v.post { apply() }
+    }
+
+    /** The holiday pictures know rain and snow; a storm shows as rain there, fog as nothing. */
+    private fun seasonWeather(): String = when (WeatherRepository.kind) { "storm" -> "rain"; "fog" -> ""; else -> WeatherRepository.kind }
+
+    /** Sports theme: the game for the big screen. My team live, then any live game, then my next game, then the next game. */
+    private fun boardGame(): Game? {
+        if (prefs.sports == "off") return null
+        val keys = prefs.myTeamKeys
+        val all = SportsRepository.games
+        fun mine(g: Game) = g.homeKey in keys || g.awayKey in keys
+        val pool = if (prefs.sports == "my") all.filter { mine(it) } else all
+        return pool.firstOrNull { it.state == "in" && mine(it) } ?: pool.firstOrNull { it.state == "in" }
+            ?: pool.firstOrNull { it.state == "pre" && mine(it) } ?: pool.firstOrNull { it.state == "pre" }
+            ?: pool.firstOrNull { mine(it) } ?: pool.firstOrNull()
+    }
+
+    private fun boardFor(g: Game?): StadiumView.Board? {
+        if (g == null) return null
+        if (g.homeName.isEmpty()) return StadiumView.Board("", "", "", "", g.league, g.state == "in", single = g.text.substringBefore(" ·"))
+        val status = g.league + " \u00B7 " + g.detail.ifEmpty { if (g.state == "pre") "Later" else "" }
+        return if (g.state == "pre") StadiumView.Board(g.awayName, "", "@ " + g.homeName, "", status, false)
+        else StadiumView.Board(g.awayName, g.awayScore, g.homeName, g.homeScore, status, g.state == "in")
     }
 
     // ───────────────────────── data ─────────────────────────
@@ -1027,10 +1100,10 @@ class HomeActivity : AppCompatActivity() {
         greetingView.text = if (name.isEmpty()) phrase else "$phrase, $name"
         infoView.text = SimpleDateFormat("EEEE, MMMM d", Locale.getDefault()).format(nowCal().time) + weatherSuffix()
         topInfo.text = infoView.text
-        val cd = if (wallpaperNow() == "season") Seasons.countdown(nowCal()) else null
+        val cd = if (wallpaperNow() == "season" || wallpaperNow() == "stadium") Seasons.countdown(nowCal()) else null
         countdownView.text = cd ?: ""
         countdownView.visibility = if (cd == null) View.GONE else View.VISIBLE
-        countdownView.setTextColor(if (prefs.highContrast) textColor else Seasons.accent(this, sceneNow().ifEmpty { "galaxy" }))
+        countdownView.setTextColor(if (prefs.highContrast) textColor else if (premium) goldHi else Seasons.accent(this, sceneNow().ifEmpty { "galaxy" }))
     }
 
     private fun updateNotice() {
@@ -1060,7 +1133,7 @@ class HomeActivity : AppCompatActivity() {
         // Set in Settings > Renewal reminder. Shows from a month before the date until a month after it.
         val date = ReminderPicker.parse(prefs.reminderDate) ?: return null
         val days = ReminderPicker.daysLeft(date)
-        if (days > 30 || days < -30) return null
+        if (days > 14 || days < -30) return null   // v0.14: only when it's close; the rest of the time the corner stays clean
         val nice = ReminderPicker.nice(date)
         if (days > 14) return ChipSpec("Renews $nice", mutedColor) { openPay() }
         val color = if (days <= 3) red else amber
@@ -1098,12 +1171,11 @@ class HomeActivity : AppCompatActivity() {
         val upHours = SystemClock.elapsedRealtime() / 3_600_000L
         if (upHours >= 48 && System.currentTimeMillis() > prefs.restartSnoozeUntil) chips += ChipSpec("Restart for best speed", accent) { askRestart(upHours) }
         if (prefs.cleanupDue()) chips += ChipSpec("Maintenance due", accent) { openCleanup() }
-        val contactChip = ChipSpec("Contact", mutedColor) { openContact() }
         val tipsChip = ChipSpec("How-to", mutedColor) { startActivity(Intent(this, TipsActivity::class.java)) }
 
         // Top right: up to three passing notices (updates, maintenance...), then Contact and the gear.
         // The renewal and VPN chips live under the greeting, top left, away from the picture.
-        val shownChips = chips.take(2) + tipsChip + contactChip
+        val shownChips = chips.take(2) + tipsChip   // v0.14: Contact lives in Settings (and the gear menu)
         val sig = shownChips.joinToString("|") { it.text + it.color } + "#" + glassTint
         if (sig == chipSignature && chipRow.childCount > 0) return
         chipSignature = sig
@@ -1117,7 +1189,7 @@ class HomeActivity : AppCompatActivity() {
             isClickable = true
             setOnClickListener { showMenu() }
         }
-        style(gear, 24f, emptyList()) { has -> gear.tint = if (has) dark else textColor }
+        style(gear, 24f, emptyList()) { has -> gear.tint = if (has) (if (premium) goldHi else dark) else (if (premium) ivory else textColor) }
         chipRow.addView(gear, LinearLayout.LayoutParams(dp(48), dp(48)))
         gearView = gear
         if (hadGearFocus) gear.requestFocus()
@@ -1170,7 +1242,8 @@ class HomeActivity : AppCompatActivity() {
             val note = a.tag.ifBlank { defaultNote(a.pkg) }
             val installed = updater.isInstalled(a.pkg)
             val icon: Drawable? = if (installed) {
-                (if (prefs.galaxyIcons) IconOverrides.get(this, a.pkg) else null)
+                (if (premium) IconOverrides.gold(this, a.name, a.pkg) else null)
+                    ?: (if (prefs.galaxyIcons) IconOverrides.get(this, a.pkg) else null)
                     ?: try { packageManager.getApplicationIcon(a.pkg) } catch (e: Exception) { null }
             } else null
             val tile = makeTile(a.name, icon, a.name.take(1).uppercase(), a.pkg, note) {
@@ -1279,13 +1352,14 @@ class HomeActivity : AppCompatActivity() {
                 textSize = 10f * prefs.textScale
                 setTypeface(null, Typeface.BOLD)
                 letterSpacing = 0.04f
-                setTextColor(Color.argb(220, 255, 255, 255))
+                setTextColor(if (premium) gold else Color.argb(220, 255, 255, 255))
+                if (premium) { typeface = capsFont; letterSpacing = 0.1f; isAllCaps = true; textSize = 9f * prefs.textScale }
                 setPadding(dp(6), dp(1), dp(6), dp(2))
                 background = GradientDrawable().apply {
                     shape = GradientDrawable.RECTANGLE
                     cornerRadius = dpf(8f)
-                    setColor(Color.argb(150, 0, 0, 0))
-                    setStroke(dp(1), Color.argb(70, 255, 255, 255))
+                    setColor(Color.argb(if (premium) 210 else 150, 0, 0, 0))
+                    setStroke(dp(1), if (premium) (gold and 0x00FFFFFF) or 0x88000000.toInt() else Color.argb(70, 255, 255, 255))
                 }
             }
             box.addView(badge, FrameLayout.LayoutParams(WRAP, WRAP, Gravity.TOP or Gravity.START).apply { topMargin = dp(2); leftMargin = dp(2) })
@@ -1306,15 +1380,16 @@ class HomeActivity : AppCompatActivity() {
         val tv = TextView(this).apply {
             text = spec.text
             textSize = 16f * prefs.textScale
-            setTextColor(spec.color)
+            setTextColor(if (premium && spec.color == mutedColor) ivory else spec.color)
             gravity = Gravity.CENTER
             setPadding(dp(18), dp(10), dp(18), dp(10))
+            if (premium) { typeface = capsFont; textSize = 14f * prefs.textScale; letterSpacing = 0.04f }
         }
         if (spec.onClick != null) {
             tv.isFocusable = true
             tv.isClickable = true
             tv.setOnClickListener { spec.onClick.invoke() }
-            style(tv, 20f, listOf(tv to spec.color))
+            style(tv, 20f, listOf(tv to (if (premium && spec.color == mutedColor) ivory else spec.color)))
         } else {
             tv.background = GradientDrawable().apply {
                 shape = GradientDrawable.RECTANGLE
@@ -1338,7 +1413,7 @@ class HomeActivity : AppCompatActivity() {
         }
         v.setOnFocusChangeListener { view, has ->
             labels.forEach { (t, c) ->
-                t.setTextColor(if (has) Color.BLACK else c)
+                t.setTextColor(if (has) (if (premium) goldHi else Color.BLACK) else c)
                 t.setTypeface(null, if (has) Typeface.BOLD else Typeface.NORMAL)
             }
             extra?.invoke(has)
@@ -1351,7 +1426,10 @@ class HomeActivity : AppCompatActivity() {
         shape = GradientDrawable.RECTANGLE
         cornerRadius = dpf(radiusDp)
         val g = glassTint
-        if (g != null) {
+        if (premium) {
+            setColor(Color.parseColor("#B3070605"))                       // smoked glass
+            setStroke(dp(2), (gold and 0x00FFFFFF) or 0x99000000.toInt())  // thin champagne-gold line
+        } else if (g != null) {
             setColor(Color.parseColor("#B3070510"))                       // dark glass, so the picture shows through
             setStroke(dp(2), (g and 0x00FFFFFF) or 0xAA000000.toInt())      // edged in the season's colour
         } else {
@@ -1365,6 +1443,16 @@ class HomeActivity : AppCompatActivity() {
             shape = GradientDrawable.RECTANGLE
             cornerRadius = dpf(maxOf(r, 0f))
             setColor(c)
+        }
+        if (premium) {                                                    // selected: a bright gold frame around dark glass
+            return LayerDrawable(arrayOf<Drawable>(
+                layer(radiusDp, (goldHi and 0x00FFFFFF) or 0x40000000),        // soft outer glow
+                layer(radiusDp - 2f, goldHi),
+                layer(radiusDp - 5f, Color.parseColor("#E6120E09"))
+            )).apply {
+                setLayerInset(1, dp(2), dp(2), dp(2), dp(2))
+                setLayerInset(2, dp(5), dp(5), dp(5), dp(5))
+            }
         }
         return LayerDrawable(arrayOf<Drawable>(
             layer(radiusDp, Color.BLACK),
@@ -1416,7 +1504,7 @@ class HomeActivity : AppCompatActivity() {
     private fun showMenu() {
         AlertDialog.Builder(this)
             .setTitle("Galaxy Media")
-            .setItems(arrayOf("All apps", "Stick health", "Pay / Renew", if (DeviceProfile.detect(this).platform == "fireos") "Fire TV settings" else "TV settings", "Settings", "Setup & updates", "Help: fix it")) { _, which ->
+            .setItems(arrayOf("All apps", "Stick health", "Pay / Renew", if (DeviceProfile.detect(this).platform == "fireos") "Fire TV settings" else "TV settings", "Settings", "Setup & updates", "Help: fix it", "Contact")) { _, which ->
                 when (which) {
                     0 -> startActivity(Intent(this, AllAppsActivity::class.java))
                     1 -> startActivity(Intent(this, HealthActivity::class.java))
@@ -1424,7 +1512,8 @@ class HomeActivity : AppCompatActivity() {
                     3 -> openFireSettings()
                     4 -> startActivity(Intent(this, SettingsActivity::class.java))
                     5 -> openSetup()
-                    else -> startActivity(Intent(this, HelpActivity::class.java))
+                    6 -> startActivity(Intent(this, HelpActivity::class.java))
+                    else -> openContact()
                 }
             }
             .setNegativeButton("Close", null)
