@@ -39,6 +39,11 @@ Set up a whole stick from the laptop (needs ADB debugging on and the Allow promp
 Record the TV screen on the laptop (clean picture, no TV frame; saved in 170-second parts):
   .\galaxy-maintain.ps1 -Ip 192.168.1.172 -Record -Seconds 600
   Open a second PowerShell window for the other commands while it records. Ctrl+C stops early.
+  Add -Small for 720p parts of about 20 MB, small enough to upload to a chat.
+Try a test build on one stick (from a test branch; installs next to the normal app, family sticks are not touched):
+  .\galaxy-maintain.ps1 -Ip 192.168.1.172 -InstallTest
+  How-to video clips: add -Topic to name them; it records until you press Ctrl+C (the part in progress is kept).
+  .\galaxy-maintain.ps1 -Ip 192.168.1.172 -Record -Topic clear_cache    saved in reports\recordings\clear_cache
 
 Remove every app you installed except the ones you keep (it lists them and asks first; their sign-ins and data are lost):
   .\galaxy-maintain.ps1 -Ip 192.168.1.165 -RemoveApps -DryRun              list only: do this first
@@ -101,19 +106,22 @@ param(
     [switch]$HomeTest,
     [switch]$InstallHomeTest,
     [switch]$TestCleanup,
+    [switch]$Small,
+    [string]$Topic,
+    [switch]$InstallTest,
     [switch]$TestMaintenance,
     [string]$Gist,
     [int]$Port = 5555,
     [string]$Pair
 )
 
-$ScriptVersion = 'v0.13.2 (2026-11-08)'
+$ScriptVersion = 'v0.13.21 (2026-11-23)'
 Write-Host "galaxy-maintain $ScriptVersion" -ForegroundColor DarkGray
 $ErrorActionPreference = 'Continue'   # adb writes status text to stderr; don't treat that as an error
 $ListUrl = 'https://raw.githubusercontent.com/galaxystreamingservice-droid/galaxy-tv/main/app/src/main/assets/debloat_fireos.json'
 
 # No action chosen = the safe default set.
-$anyAction = ($Report -or $Debloat -or $Trim -or $AutoStart -or [bool]$Speed -or [bool]$Screensaver -or $RemoveAmazonSaver -or $Reboot -or $HomeCheck -or $HomeLock -or $HomeUndo -or $Verify -or $Screenshot -or $Audit -or $Benchmark -or $Undebloat -or $Dump -or $InstallApps -or $Cycle -or $Summarize -or $RemoveApps -or $Setup -or $Record -or $HomeProbe -or $HomeTest -or $InstallHomeTest -or $TestCleanup -or $TestMaintenance)
+$anyAction = ($Report -or $Debloat -or $Trim -or $AutoStart -or [bool]$Speed -or [bool]$Screensaver -or $RemoveAmazonSaver -or $Reboot -or $HomeCheck -or $HomeLock -or $HomeUndo -or $Verify -or $Screenshot -or $Audit -or $Benchmark -or $Undebloat -or $Dump -or $InstallApps -or $Cycle -or $Summarize -or $RemoveApps -or $Setup -or $Record -or $HomeProbe -or $HomeTest -or $InstallHomeTest -or $TestCleanup -or $TestMaintenance -or $InstallTest)
 $defaultRun = $false
 if (-not $anyAction -and -not $Pair) {
     $Report = $true; $Debloat = $true; $Trim = $true; $AutoStart = $true; $defaultRun = $true
@@ -192,7 +200,7 @@ function Find-Adb {
 $adb = Find-Adb
 if (-not $adb) { Write-Host 'adb not found. Put adb.exe next to this script or add platform-tools to PATH.' -ForegroundColor Red; exit 1 }
 
-if (-not $Ip) { $Ip = Read-Host 'Stick IP address' }
+while (-not $Ip) { $Ip = (Read-Host 'Stick IP address (TV: Settings > My Fire TV > About > Network)').Trim() }
 $target = "${Ip}:$Port"
 
 function Sh([string]$cmd) {
@@ -289,29 +297,48 @@ function Install-ShelfApps([string]$setUrl) {
 
 # ---- RECORD: record the TV screen on the laptop (no TV frame, no phone camera) ----
 if ($Record) {
-    $total = if ($Seconds -gt 0) { $Seconds } else { 300 }
+    $Topic = ($Topic -replace '[^A-Za-z0-9_-]', '_')
+    $total = if ($Seconds -gt 0) { $Seconds } elseif ($Topic) { 3600 } else { 300 }
     $recDir = Join-Path $PSScriptRoot 'reports\recordings'
+    if ($Topic) { $recDir = Join-Path $recDir $Topic }
     New-Item -ItemType Directory -Force -Path $recDir | Out-Null
     $recStamp = Get-Date -Format 'yyyy-MM-dd_HHmm'
+    if ($Topic) { $recStamp = "$Topic-$recStamp" }
     Write-Host "=== RECORD: $total seconds of the TV picture, saved in parts of up to 170 seconds ===" -ForegroundColor Cyan
     Write-Host '  Do your steps now (remote, or commands in a second window). Ctrl+C stops early.' -ForegroundColor Yellow
     Write-Host '  There is no sound, and a second or two is lost between parts. Protected video shows black.' -ForegroundColor DarkGray
+    if ($Topic) { Write-Host "  Topic: $Topic. Press Ctrl+C here when you are done." -ForegroundColor Yellow }
     $started = Get-Date
     $part = 1
-    while ($true) {
-        $left = [int]($total - ((Get-Date) - $started).TotalSeconds)
-        if ($left -lt 3) { break }
-        $len = [Math]::Min(170, $left)
-        $remote = "/sdcard/galaxy-rec-$part.mp4"
-        & $adb -s $target shell "screenrecord --time-limit $len --bit-rate 8000000 $remote" 2>&1 | Out-Null
-        $local = Join-Path $recDir ("$recStamp-part$part.mp4")
-        & $adb -s $target pull $remote $local 2>&1 | Out-Null
-        & $adb -s $target shell "rm $remote" 2>&1 | Out-Null
-        if (Test-Path $local) { Write-Host "  saved: $local" -ForegroundColor Green }
-        else { Write-Host '  nothing was saved. This stick may not allow screen recording.' -ForegroundColor Yellow; break }
-        $part++
+    $pending = $null
+    try {
+        while ($true) {
+            $left = [int]($total - ((Get-Date) - $started).TotalSeconds)
+            if ($left -lt 3) { break }
+            $len = [Math]::Min(170, $left)
+            $remote = "/sdcard/galaxy-rec-$part.mp4"
+            $local = Join-Path $recDir ("$recStamp-part$part.mp4")
+            $q = if ($Small) { '--bit-rate 1000000 --size 1280x720' } else { '--bit-rate 8000000' }
+            $pending = @($remote, $local)
+            & $adb -s $target shell "screenrecord --time-limit $len $q $remote" 2>&1 | Out-Null
+            & $adb -s $target pull $remote $local 2>&1 | Out-Null
+            & $adb -s $target shell "rm $remote" 2>&1 | Out-Null
+            $pending = $null
+            if (Test-Path $local) { Write-Host "  saved: $local" -ForegroundColor Green }
+            else { Write-Host '  nothing was saved. This stick may not allow screen recording.' -ForegroundColor Yellow; break }
+            $part++
+        }
+    } finally {
+        if ($pending) {
+            # Ctrl+C: stop the recorder cleanly on the stick and keep the part in progress
+            & $adb -s $target shell "pkill -INT screenrecord" 2>&1 | Out-Null
+            Start-Sleep -Seconds 2
+            & $adb -s $target pull $pending[0] $pending[1] 2>&1 | Out-Null
+            & $adb -s $target shell "rm $($pending[0])" 2>&1 | Out-Null
+            if (Test-Path $pending[1]) { Write-Host "  saved: $($pending[1])" -ForegroundColor Green }
+        }
+        Write-Host "  Done. Recordings are in: $recDir"
     }
-    Write-Host "  Done. Recordings are in: $recDir"
     exit 0
 }
 
@@ -820,8 +847,8 @@ if ($HomeProbe) {
         else { Say "  Fire OS allows it, and Amazon's home screen is back on. A lock-in is possible on this stick." 'Green' }
     }
 }
-if ($InstallHomeTest) {
-    Say '=== INSTALL HOME TEST APP (over ADB) ==='
+if ($InstallTest) {
+    Say '=== INSTALL TEST VERSION (over ADB) ==='
     try {
         $rels = Invoke-RestMethod -UseBasicParsing -ErrorAction Stop -Headers @{ 'User-Agent' = 'galaxy-maintain' } 'https://api.github.com/repos/galaxystreamingservice-droid/galaxy-tv/releases'
         $rel = @($rels | Where-Object { $_.prerelease -and $_.tag_name -like 'home-test-*' }) | Select-Object -First 1
@@ -833,7 +860,7 @@ if ($InstallHomeTest) {
             Invoke-WebRequest -UseBasicParsing -ErrorAction Stop $asset.browser_download_url -OutFile $apk
             $r = (& $adb -s $target install -r $apk 2>&1 | Out-String).Trim()
             Remove-Item $apk -ErrorAction SilentlyContinue
-            if ($r -match 'Success') { Say '  Installed: Galaxy Media HOME TEST. Open it once on the TV and do the wizard.' 'Green' } else { Say "  Install failed: $r" 'Yellow' }
+            if ($r -match 'Success') { Say ('  Installed: Galaxy Media HOME TEST (' + $rel.tag_name + '), next to the normal app. Open it once on the TV and do the wizard.') 'Green' } else { Say "  Install failed: $r" 'Yellow' }
         }
     } catch { Say '  Could not reach GitHub from the laptop.' 'Yellow' }
 }
@@ -966,7 +993,17 @@ if ($RemoveAmazonSaver) {
 }
 
 # ---- TEST CLEANUP: does "Clean up when I return home" close the apps and keep the VPN? ----
-function PidOf([string]$p) { Sh "pidof $p" | Where-Object { $_ -match '^\d' } | Select-Object -First 1 }
+function PidOf([string]$p) {
+    $r = Sh "pidof $p" | Where-Object { $_ -match '^\d' } | Select-Object -First 1
+    if ($r) { return ($r -split '\s+')[0] } else { return $null }
+}
+function Rank([string]$procId) {
+    $a = Sh "cat /proc/$procId/oom_score_adj" | Where-Object { $_ -match '^-?\d+$' } | Select-Object -First 1
+    if ($null -eq $a) { return 'unknown' }
+    $n = [int]$a
+    $why = if ($n -le 0) { 'on screen' } elseif ($n -le 250) { 'playing or busy in the foreground' } elseif ($n -le 600) { 'running a background service' } elseif ($n -le 799) { 'kept as the last app used' } else { 'parked in memory' }
+    return "$why, score $n"
+}
 function MemAvailMB {
     $m = [regex]::Match(((Sh 'cat /proc/meminfo') -join "`n"), 'MemAvailable:\s+(\d+)')
     if ($m.Success) { [math]::Round([int64]$m.Groups[1].Value / 1024) } else { $null }
@@ -991,7 +1028,8 @@ if ($TestCleanup) {
         if (-not $comp) { Say "  ${name}: no start screen found, skipped" 'Yellow'; continue }
         Sh "am start -n $comp" | Out-Null
         Start-Sleep -Seconds 10
-        if (PidOf $p) { $opened[$name] = $p; Say "  Opened $name" }
+        $first = PidOf $p
+        if ($first) { $opened[$name] = @($p, $first); Say "  Opened $name" }
         else { Say "  ${name}: closed by itself right after opening" 'Yellow' }
     }
     $memOpen = MemAvailMB
@@ -1001,14 +1039,17 @@ if ($TestCleanup) {
     $memAfter = MemAvailMB
     $closed = 0
     foreach ($name in $opened.Keys) {
-        $p = $opened[$name]
-        if (-not (PidOf $p)) { Chk $true "$name was closed"; $closed++ }
+        $p = $opened[$name][0]; $was = $opened[$name][1]
+        $now = PidOf $p
+        if (-not $now) { Chk $true "$name was closed"; $closed++ }
+        elseif ($now -ne $was) { Chk $false "$name was closed, then started again by itself (its background service tells Android to bring it back)" 'WARN'; $closed++ }
         else {
             $svc = (Sh "dumpsys activity services $p") -join ' '
             if ($svc -match 'isForeground=true') { Chk $false "$name is still open: it runs a foreground service (playing, recording or downloading), and Android does not let another app close that" 'WARN' }
-            else { Chk $false "$name is still open" }
+            else { Chk $false ("$name is still open (Android ranks it: " + (Rank $now) + ')') }
         }
     }
+    Say '  Tip: run it once more with Clean up set to Off. Apps that close then too were closed by Android for memory, not by Galaxy Media.'
     if ($opened.Count -gt 0 -and $closed -eq 0) { Say '  Nothing was closed. Check that Settings > Clean up when I return home is On, then run this again.' 'Yellow' }
     if ($vpn) {
         if ($vpnBefore) { Chk ([bool](PidOf $vpn)) 'WorldVPN stayed running' }
