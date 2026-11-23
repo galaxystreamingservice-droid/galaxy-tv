@@ -1,11 +1,11 @@
 name: Unpack drop
-# One-zip upload: GitHub > open the drop/ folder (or upload to drop/) > Upload files > the zip > Commit.
-# The zip holds app/... paths (exactly like the folders made for each version). This unpacks ONLY app/ files
-# over the repo, removes the zip, commits, then starts the build for this branch (main = family release,
-# any other branch = the HOME test pre-release that family sticks never see).
+# Upload into the drop/ folder (GitHub > Add file > Upload files, on the drop/ page) EITHER the version zip OR the
+# version's app folder. This copies ONLY app/ files over the repo, clears drop/, commits, then starts the build for
+# this branch (main = family release, any other branch = the HOME test pre-release that family sticks never see).
 on:
   push:
-    paths: ['drop/*.zip']
+    paths: ['drop/**']
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -17,24 +17,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Unpack app/ files from the zip
+      - name: Copy the dropped app files into app/
         run: |
           set -e
-          shopt -s nullglob
-          for z in drop/*.zip; do
-            echo "Unpacking $z"
-            tmp=$(mktemp -d); unzip -q -o "$z" -d "$tmp"
-            # accept app/..., <folder>/app/..., or the inside of app/ (build.gradle.kts + src)
-            src=$(find "$tmp" -maxdepth 3 -type d -name app | head -n 1)
-            if [ -z "$src" ] && { [ -d "$tmp/src" ] || [ -f "$tmp/build.gradle.kts" ]; }; then src="$tmp"; fi
-            [ -n "$src" ] || { echo "No app files inside $z"; exit 1; }
-            cp -r "$src"/. app/
-            git rm -q "$z"
-          done
+          shopt -s nullglob dotglob
+          [ -d drop ] || { echo "Nothing in drop/"; exit 0; }
+          tmp=$(mktemp -d)
+          for z in drop/*.zip; do echo "Unzipping $z"; unzip -q -o "$z" -d "$tmp"; done
+          for f in drop/*; do case "$f" in *.zip) ;; *) cp -r "$f" "$tmp/" ;; esac; done
+          # accept app/..., <folder>/app/..., or the inside of app/ (build.gradle.kts + src)
+          src=$(find "$tmp" -maxdepth 3 -type d -name app | head -n 1)
+          if [ -z "$src" ] && { [ -d "$tmp/src" ] || [ -f "$tmp/build.gradle.kts" ]; }; then src="$tmp"; fi
+          [ -n "$src" ] || { echo "No app files in drop/"; exit 1; }
+          echo "Copying from $src"
+          cp -r "$src"/. app/
+          git rm -rq drop
           git add app
           git config user.name "galaxy-drop"
           git config user.email "galaxy-drop@users.noreply.github.com"
-          git diff --cached --quiet && { echo "Nothing changed"; exit 0; }
           git commit -m "Unpack drop ($(date -u +%F' '%H:%M) UTC)"
           git push
 
