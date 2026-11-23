@@ -2,6 +2,7 @@ name: Build APK
 on:
   push:
     branches: [ main ]
+    paths-ignore: [ 'drop/**' ]   # a zip upload is unpacked first; the unpack workflow starts this build
   workflow_dispatch:
 
 permissions:
