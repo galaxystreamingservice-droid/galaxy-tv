@@ -152,7 +152,11 @@ class HomeActivity : AppCompatActivity() {
     private fun storyNow(): String? {
         if (StoryTest.active(prefs)) return StoryTest.stageNow(this)?.id
         if (wallpaperNow() != "season" || prefs.previewScene.isNotEmpty()) return null
-        val id = StoryStages.stageFor(java.util.Calendar.getInstance()) ?: return null
+        val cal = java.util.Calendar.getInstance()
+        val id = StoryStages.stageFor(cal) ?: return null
+        // Jan 1: the midnight launch plays once (live at midnight, or the first time Home shows that day), then the smoke trail.
+        if (id == "ny_jan01" && prefs.launchYear != cal.get(java.util.Calendar.YEAR) && motionNow() != "off" &&
+            StoryStages.exists(this, "ny_launch")) return "ny_launch"
         return if (StoryStages.exists(this, id)) id else null
     }
 
@@ -911,7 +915,11 @@ class HomeActivity : AppCompatActivity() {
             val wp = wallpaperNow()
             val oldScene = story?.let { StoryStages.oldScene(it) }
             val v: View? = if (oldScene != null) SeasonView(this, oldScene, if (StoryTest.active(prefs)) "normal" else motionNow(), WeatherRepository.kind)
-                else if (story != null) StoryVideoView(this, story, StoryTest.active(prefs) || motionNow() != "off") else when (wp) {
+                else if (story != null) StoryVideoView(this, story, StoryTest.active(prefs) || motionNow() != "off",
+                    if (story == "ny_launch" && !StoryTest.active(prefs)) ({
+                        prefs.launchYear = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
+                        applyTheme()
+                    }) else null) else when (wp) {
                 "logo" -> ImageView(this).apply {
                     scaleType = ImageView.ScaleType.CENTER_CROP
                     setImageResource(R.drawable.galaxy_background)

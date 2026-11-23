@@ -171,6 +171,11 @@ class Prefs(ctx: Context) {
 
     /** Starfield motion: "off" (still), "reduced" (slow, subtle twinkle) or "normal". */
     /** TEMPORARY Season test: until this time the home screen cycles the holiday scenes every 5 seconds. */
+    /** Year the New Year launch clip last played (it plays once, at midnight or the first time Home shows on Jan 1). */
+    var launchYear: Int
+        get() = sp.getInt("launchYear", 0)
+        set(v) = sp.edit().putInt("launchYear", v).apply()
+
     var storyTestUntil: Long
         get() = sp.getLong("storyTestUntil", 0L)
         set(v) = sp.edit().putLong("storyTestUntil", v).apply()

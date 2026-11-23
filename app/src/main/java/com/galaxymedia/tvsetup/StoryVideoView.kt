@@ -15,7 +15,7 @@ import android.widget.ImageView
  * The still picture shows first (and is all that shows when Screen effects are off).
  * The clip stops as soon as the home screen is hidden, so it never competes with the app being watched.
  */
-class StoryVideoView(ctx: Context, private val stage: String, private val animate: Boolean) :
+class StoryVideoView(ctx: Context, private val stage: String, private val animate: Boolean, private val onDone: (() -> Unit)? = null) :
     FrameLayout(ctx), TextureView.SurfaceTextureListener {
 
     private val still = ImageView(ctx).apply { scaleType = ImageView.ScaleType.CENTER_CROP }
@@ -62,7 +62,8 @@ class StoryVideoView(ctx: Context, private val stage: String, private val animat
             mp.setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
             afd.close()
             mp.setSurface(s)
-            mp.isLooping = true
+            mp.isLooping = onDone == null          // a one-time clip (the New Year launch) plays once, then hands back
+            if (onDone != null) mp.setOnCompletionListener { post { onDone?.invoke() } }
             mp.setVolume(0f, 0f)
             mp.setOnPreparedListener {
                 if (player === it) {
@@ -70,11 +71,12 @@ class StoryVideoView(ctx: Context, private val stage: String, private val animat
                     tex?.animate()?.alpha(1f)?.setDuration(600)?.start()
                 }
             }
-            mp.setOnErrorListener { _, _, _ -> stop(); true }
+            mp.setOnErrorListener { _, _, _ -> stop(); onDone?.let { post { it() } }; true }
             player = mp
             mp.prepareAsync()
         } catch (e: Exception) {
             stop()
+            onDone?.let { post { it() } }
         }
     }
 

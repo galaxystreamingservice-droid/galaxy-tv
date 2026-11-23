@@ -40,6 +40,9 @@ object StoryStages {
             }
         }
         if (m == 12 && d in 1..25) return "xm_d%02d".format(d)
+        if (m == 12 && d >= 26) return "ny_d$d"                      // countdown tower (Dec 31: 11:59)
+        if (m == 1 && d <= 7) return "ny_jan%02d".format(d)           // Jan 1 smoke trail, Jan 2–6 journey, Jan 7 arrival
+        if (m == 1) return "ny_galaxy"                               // Galaxy January
         return null
     }
 
@@ -75,7 +78,17 @@ object StoryStages {
             out += Stage("xm_d%02d".format(d), label)
         }
         // Holidays still waiting for their new art: today's simple seasonal picture stands in ("old_" + scene).
-        out += Stage("old_newyear", "New Year · current picture (new art coming)")
+        for (d in 26..30) out += Stage("ny_d$d", "New Year · Dec $d · countdown tower: ${32 - d} days to go")
+        out += Stage("ny_d31", "New Year's Eve · Dec 31 · the tower shows 11:59")
+        out += Stage("ny_launch", "Midnight · the G ball drops and blasts off (plays once on Jan 1)")
+        out += Stage("ny_jan01", "Jan 1 · smoke trail, the ball heads for space")
+        out += Stage("ny_jan02", "Jan 2 · leaving Earth")
+        out += Stage("ny_jan03", "Jan 3 · passing the Moon")
+        out += Stage("ny_jan04", "Jan 4 · the asteroid field (BONK)")
+        out += Stage("ny_jan05", "Jan 5 · past the planets")
+        out += Stage("ny_jan06", "Jan 6 · a comet races it")
+        out += Stage("ny_jan07", "Jan 7 · it arrives and becomes the G planet")
+        out += Stage("ny_galaxy", "Galaxy January · Jan 8–31 · laps around the G")
         out += Stage("old_valentines", "Valentine's · current picture (new art coming)")
         out += Stage("old_stpatricks", "St. Patrick's · current picture (new art coming)")
         out += Stage("old_easter", "Easter · current picture (new art coming)")
