@@ -103,9 +103,14 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
+    /** True on the days a story clip is the seasonal background (Thanksgiving week, Dec 1–25, New Year → January). */
+    private fun storyDay(): Boolean =
+        prefs.previewScene.isEmpty() && StoryStages.stageFor(java.util.Calendar.getInstance()) != null
+
     private fun startMeasure(key: String, motion: String) {
         stopMeasure()
         if (motion == "off" || key == "plain" || key == "logo" || key in Themes.sceneKeys) return
+        if (Themes.isSeason(key) && storyDay()) return   // video clips: frame timings measure the video, not the stick
         val prev = prefs.bgSpeed(key)
         if (prev != null && System.currentTimeMillis() - prev.third < 3L * 24 * 3600 * 1000) return   // measured recently
         measureKey = key
@@ -144,7 +149,8 @@ class HomeActivity : AppCompatActivity() {
         if (prefs.animations == "off") return "off"
         if (lite && (Themes.isPicture(wp) || Themes.isSeason(wp))) return "off"
         // Measured rough on this stick: show the still, unless Screen effects is set to "Always on".
-        if (prefs.animations != "on" && Themes.isSeason(wp) && wp in prefs.heavyBackgrounds()) return "off"
+        // Story clips are hardware-decoded video (about 25% CPU on a 4K stick), so a rough reading never stops them.
+        if (prefs.animations != "on" && Themes.isSeason(wp) && !storyDay() && wp in prefs.heavyBackgrounds()) return "off"
         return prefs.motion
     }
 

@@ -22,11 +22,13 @@ import androidx.appcompat.app.AppCompatActivity
 /**
  * "Fix it" help cards: plain-language steps for the common problems.
  * Nothing here changes anything by itself: each card says what to do and can open the right screen.
+ * A step with a how-to video also shows a QR code, to watch on a phone while doing it on the TV (see HelpVideos).
+ * Guided maintenance (the monthly upkeep) lives here too, at the bottom of the list.
  */
 class HelpActivity : AppCompatActivity() {
 
-    /** action: "" (none), "wifi", "apps", "settings" or "setup". */
-    private class Step(val title: String, val where: String, val todo: List<String>, val note: String, val action: String = "")
+    /** action: "" (none), "wifi", "apps", "settings", "setup" or "maintenance". video: the HelpVideos key ("" = none). */
+    private class Step(val title: String, val where: String, val todo: List<String>, val note: String, val action: String = "", val video: String = "")
     private class Topic(val name: String, val steps: List<Step>)
 
     private val topics = listOf(
@@ -35,18 +37,19 @@ class HelpActivity : AppCompatActivity() {
                 "Check the Wi-Fi", "Settings › Network",
                 listOf("Pick your Wi-Fi and look at the signal", "If it is weak, move the router closer or restart it (unplug 30 seconds)"),
                 "Weak Wi-Fi is the most common cause. If every channel buffers, it is the Wi-Fi.",
-                "wifi"
+                "wifi", "wifi"
             ),
             Step(
                 "Try the VPN", "WorldVPN app",
                 listOf("If the VPN is on, turn it off and try again", "If it is off, try turning it on or picking another server"),
-                "If only one channel buffers, the channel itself is having a problem. Try a different one."
+                "If only one channel buffers, the channel itself is having a problem. Try a different one.",
+                "", "vpn"
             ),
             Step(
                 "Restart the stick", "Settings › My Fire TV",
                 listOf("Restart", "Wait for the home screen, then open the app again"),
                 "A restart clears a lot of small problems.",
-                "settings"
+                "settings", "restart_stick"
             )
         )),
         Topic("No sound", listOf(
@@ -59,37 +62,85 @@ class HelpActivity : AppCompatActivity() {
                 "Check the audio setting", "Settings › Display & Sounds › Audio",
                 listOf("Surround Sound: set to Stereo", "Then try the app again"),
                 "Some TVs and soundbars cannot play surround sound and go silent.",
-                "settings"
+                "settings", "audio"
             ),
             Step(
                 "Check the cable, then restart", "Back of the TV",
                 listOf("Unplug the stick's HDMI and plug it back in", "Settings › My Fire TV › Restart"),
-                "A loose HDMI connection can cut the sound."
+                "A loose HDMI connection can cut the sound.",
+                "", "restart_stick"
             )
         )),
         Topic("App won't open", listOf(
             Step(
                 "Close it and try again", "Remote",
                 listOf("Press Home", "Open the app again"),
-                "Sometimes an app is just stuck."
+                "Sometimes an app is just stuck.",
+                "", "restart_app"
             ),
             Step(
                 "Clear the app's cache", "Settings › Applications › Manage Installed Applications › (app) › Clear cache",
                 listOf("Press Clear cache only"),
                 "Never press Clear data. That logs you out of the app.",
-                "apps"
+                "apps", "clear_cache"
             ),
             Step(
                 "Check for an update", "Galaxy Media › Setup & updates",
                 listOf("Install any update that is waiting", "Then open the app again"),
                 "An old version of an app can stop working.",
-                "setup"
+                "setup", "update_apps"
             ),
             Step(
                 "Restart the stick", "Settings › My Fire TV",
                 listOf("Restart", "If it still won't open, ask the person who set up your stick"),
                 "This fixes most apps that still won't start.",
-                "settings"
+                "settings", "restart_stick"
+            )
+        )),
+        Topic("An app keeps glitching", listOf(
+            Step(
+                "Restart the app", "Settings › Applications › Manage Installed Applications › (app)",
+                listOf("Press Force stop", "Press Home, then open the app again"),
+                "Force stop only closes the app. Nothing is deleted and you stay signed in.",
+                "apps", "restart_app"
+            ),
+            Step(
+                "Clear the app's cache", "Settings › Applications › Manage Installed Applications › (app)",
+                listOf("Press Clear cache", "Open the app again"),
+                "Clear cache only removes temporary files. You stay signed in.",
+                "apps", "clear_cache"
+            ),
+            Step(
+                "Clear the app's data (you'll need to sign in again)", "Settings › Applications › Manage Installed Applications › (app)",
+                listOf("Have the app's username and password ready", "Press Clear data, then open the app and sign in"),
+                "Only do this if clearing the cache did not help. Clear data resets the app like new and signs you out.",
+                "apps", "clear_data"
+            ),
+            Step(
+                "Uninstall the app", "Settings › Applications › Manage Installed Applications › (app)",
+                listOf("Press Uninstall", "Then go to the next step to put it back"),
+                "This removes the app and its settings. You will sign in again after reinstalling.",
+                "apps", "uninstall"
+            ),
+            Step(
+                "Install it again", "Galaxy Media › Setup & updates",
+                listOf("Press Install / update apps", "Wait for it to finish, then open the app and sign in"),
+                "Setup & updates puts back the right version of every app on your list.",
+                "setup", "reinstall"
+            )
+        )),
+        Topic("Stick is slow or storage is full", listOf(
+            Step(
+                "Run guided maintenance", "Galaxy Media › Fix it › Guided maintenance",
+                listOf("Free up space", "Clear the big apps' caches", "Update and restart"),
+                "About 5 minutes. A full stick is a slow stick.",
+                "maintenance", "storage"
+            ),
+            Step(
+                "Restart the stick", "Settings › My Fire TV",
+                listOf("Restart", "Wait for the home screen"),
+                "A restart every week or two keeps the stick quick.",
+                "settings", "restart_stick"
             )
         ))
     )
@@ -138,6 +189,7 @@ class HelpActivity : AppCompatActivity() {
         root.addView(scroll, FrameLayout.LayoutParams(MATCH, MATCH))
         setContentView(root)
         render()
+        HelpVideos.load(this) { render() }
     }
 
     private fun text(t: String, size: Float, color: Int, bold: Boolean = false, top: Int = 0): TextView =
@@ -169,6 +221,9 @@ class HelpActivity : AppCompatActivity() {
             if (first == null) first = b
             list.addView(b, LinearLayout.LayoutParams(dp(560), WRAP).apply { bottomMargin = dp(14) })
         }
+        list.addView(button("Guided maintenance (monthly upkeep)") {
+            startActivity(Intent(this, CleanupActivity::class.java))
+        }, LinearLayout.LayoutParams(dp(560), WRAP).apply { bottomMargin = dp(14) })
         list.addView(button("Done") { finish() }, LinearLayout.LayoutParams(dp(560), WRAP))
         body.addView(list, LinearLayout.LayoutParams(WRAP, WRAP))
         val f = first
@@ -195,7 +250,14 @@ class HelpActivity : AppCompatActivity() {
         card.addView(text("Then do this:", 16f, mutedColor, top = 18))
         s.todo.forEach { card.addView(text("→ $it", 22f, accent, bold = true, top = 6)) }
         card.addView(text(s.note, 16f, mutedColor, top = 18))
-        body.addView(card, LinearLayout.LayoutParams(dp(760), WRAP).apply { topMargin = dp(20) })
+        val qr = HelpVideos.panel(this, s.video, prefs.textScale, mutedColor, dp(150))
+        if (qr == null) body.addView(card, LinearLayout.LayoutParams(dp(760), WRAP).apply { topMargin = dp(20) })
+        else {
+            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+            row.addView(card, LinearLayout.LayoutParams(dp(600), WRAP))
+            row.addView(qr, LinearLayout.LayoutParams(WRAP, WRAP).apply { marginStart = dp(28) })
+            body.addView(row, LinearLayout.LayoutParams(WRAP, WRAP).apply { topMargin = dp(20) })
+        }
 
         val buttons = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -209,6 +271,7 @@ class HelpActivity : AppCompatActivity() {
             "wifi" -> "Open Wi-Fi settings"
             "apps" -> "Open apps list"
             "setup" -> "Open Setup & updates"
+            "maintenance" -> "Start guided maintenance"
             "settings" -> "Open Fire TV Settings"
             else -> ""
         }
@@ -237,6 +300,7 @@ class HelpActivity : AppCompatActivity() {
             "wifi" -> SystemSettings.open(this, SystemSettings.Target.WIFI, null, "Settings › Network")
             "apps" -> SystemSettings.open(this, SystemSettings.Target.APPS, null, "Settings › Applications › Manage Installed Applications")
             "setup" -> startActivity(Intent(this, MainActivity::class.java))
+            "maintenance" -> startActivity(Intent(this, CleanupActivity::class.java))
             else -> SystemSettings.open(this, SystemSettings.Target.MAIN, null, "Settings")
         }
     }

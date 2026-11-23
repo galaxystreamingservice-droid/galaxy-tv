@@ -42,6 +42,7 @@ class TipsActivity : Activity() {
     )
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
+    private val FIX_IT = "Something not working?"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -83,10 +84,13 @@ class TipsActivity : Activity() {
             else -> data!!.optString("intro")
         }
         list.removeAllViews()
+        items.add(0, Triple(FIX_IT, "Step-by-step fixes, with videos", ""))
         items.chunked(3).forEach { row ->
             val line = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
             row.forEach { (title, note, url) ->
-                line.addView(tile(title, note, url), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                val v = tile(title, note, url)
+                if (title == FIX_IT) v.setOnClickListener { startActivity(android.content.Intent(this, HelpActivity::class.java)) }
+                line.addView(v, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
                     marginEnd = dp(16); bottomMargin = dp(16)
                 })
             }
@@ -105,7 +109,11 @@ class TipsActivity : Activity() {
             background = box(false)
             setOnFocusChangeListener { v, has -> v.background = box(has) }
         }
-        if (url.isNotBlank()) {
+        if (title == FIX_IT) {
+            t.addView(TextView(this).apply {
+                text = "🛠\nPress OK"; textSize = 26f * prefs.textScale; setTextColor(accent); gravity = Gravity.CENTER
+            }, LinearLayout.LayoutParams(dp(162), dp(162)))
+        } else if (url.isNotBlank()) {
             val qr = qr(url, dp(150))
             if (qr != null) t.addView(ImageView(this).apply {
                 setImageBitmap(qr); setBackgroundColor(Color.WHITE); setPadding(dp(6), dp(6), dp(6), dp(6))

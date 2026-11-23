@@ -45,6 +45,7 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         prefs = Prefs(this)
+        HelpVideos.load(this)
         profile = DeviceProfile.detect(this)
         updater = AppUpdater(this, prefs)
         logView = findViewById(R.id.log)
@@ -255,9 +256,14 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun askInstallPermission() {
+        val d = resources.displayMetrics.density
+        val qr = HelpVideos.panel(this, "unknown_apps", prefs.textScale, Color.GRAY, (130 * d).toInt())
         AlertDialog.Builder(this)
             .setTitle("Allow installs")
             .setMessage("Turn ON 'Install unknown apps' for Galaxy Media on the next screen, then come back and press Install / update apps.")
+            .apply { if (qr != null) setView(LinearLayout(this@MainActivity).apply {
+                gravity = android.view.Gravity.CENTER; setPadding(0, (12 * d).toInt(), 0, 0); addView(qr)
+            }) }
             .setPositiveButton("Open") { _, _ ->
                 SystemSettings.open(this, SystemSettings.Target.UNKNOWN_SOURCES, packageName, "Settings › My Fire TV › Developer options › Install unknown apps")
             }
