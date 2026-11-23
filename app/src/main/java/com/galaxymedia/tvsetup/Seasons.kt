@@ -65,13 +65,13 @@ object Seasons {
     private fun day(y: Int, month: Int, d: Int): Calendar = Calendar.getInstance().apply { clear(); set(y, month - 1, d) }
 
     /** US Thanksgiving: the fourth Thursday of November. */
-    private fun thanksgiving(y: Int): Calendar {
+    fun thanksgiving(y: Int): Calendar {
         val first = day(y, 11, 1)
         val offset = (Calendar.THURSDAY - first.get(Calendar.DAY_OF_WEEK) + 7) % 7
         return day(y, 11, 1 + offset + 21)
     }
 
-    private fun easterDate(y: Int): Calendar {
+    fun easterDate(y: Int): Calendar {
         val a = y % 19; val b = y / 100; val c = y % 100
         val d = b / 4; val e = b % 4; val f = (b + 8) / 25
         val g = (b - f + 1) / 3

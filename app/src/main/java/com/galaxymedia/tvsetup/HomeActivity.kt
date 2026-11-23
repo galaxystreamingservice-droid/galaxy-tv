@@ -166,9 +166,13 @@ class HomeActivity : AppCompatActivity() {
         return if (StoryStages.exists(this, id)) id else null
     }
 
+    /** Today, or during the Season test the pretend date of the scene on screen. */
+    private fun nowCal(): java.util.Calendar =
+        (if (StoryTest.active(prefs)) StoryTest.stageNow(this)?.let { StoryStages.dateFor(it.id) } else null) ?: java.util.Calendar.getInstance()
+
     /** The scene behind the Seasonal and Galaxy G backgrounds ("" for every other background). */
     private fun sceneNow(): String = when (wallpaperNow()) {
-        "season" -> prefs.previewScene.ifEmpty { Seasons.sceneFor(java.util.Calendar.getInstance()) }
+        "season" -> prefs.previewScene.ifEmpty { Seasons.sceneFor(nowCal()) }
         "galaxy_g" -> "galaxy"
         else -> ""
     }
@@ -236,16 +240,25 @@ class HomeActivity : AppCompatActivity() {
     private fun dpf(v: Float): Float = v * resources.displayMetrics.density
 
     private val storyTest by lazy { StoryTest(this) }
+    private var testStage: String? = null
     private val testTick = object : Runnable {
         override fun run() {
             if (StoryTest.active(prefs)) {
                 storyTest.resume()
                 applyTheme()
+                val sid = StoryTest.stageNow(this@HomeActivity)?.id
+                if (sid != testStage) {        // only when the scene changes, so the CPU reading stays honest
+                    testStage = sid
+                    updateGreeting()           // the test's pretend date: greeting, countdown and date line follow the scene
+                    rebuildChips(); rebuildShelf()   // glass edge colour and the holiday decoration on the last app
+                }
                 storyTest.update(prefs)
                 handler.postDelayed(this, 1_000)
             } else {
                 storyTest.stop()
                 applyTheme()
+                testStage = null
+                updateGreeting(); rebuildChips(); rebuildShelf()
             }
         }
     }
@@ -1012,9 +1025,9 @@ class HomeActivity : AppCompatActivity() {
         }
         val name = prefs.userName.trim().replaceFirstChar { it.uppercase() }
         greetingView.text = if (name.isEmpty()) phrase else "$phrase, $name"
-        infoView.text = SimpleDateFormat("EEEE, MMMM d", Locale.getDefault()).format(Date()) + weatherSuffix()
+        infoView.text = SimpleDateFormat("EEEE, MMMM d", Locale.getDefault()).format(nowCal().time) + weatherSuffix()
         topInfo.text = infoView.text
-        val cd = if (wallpaperNow() == "season") Seasons.countdown(Calendar.getInstance()) else null
+        val cd = if (wallpaperNow() == "season") Seasons.countdown(nowCal()) else null
         countdownView.text = cd ?: ""
         countdownView.visibility = if (cd == null) View.GONE else View.VISIBLE
         countdownView.setTextColor(if (prefs.highContrast) textColor else Seasons.accent(this, sceneNow().ifEmpty { "galaxy" }))
