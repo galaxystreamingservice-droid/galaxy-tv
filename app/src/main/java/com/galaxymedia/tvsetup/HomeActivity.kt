@@ -148,6 +148,13 @@ class HomeActivity : AppCompatActivity() {
         return prefs.motion
     }
 
+    /** Today's day-by-day holiday clip (Thanksgiving week, Dec 1–25), or null for the regular seasonal picture. */
+    private fun storyNow(): String? {
+        if (wallpaperNow() != "season" || prefs.previewScene.isNotEmpty()) return null
+        val id = StoryStages.stageFor(java.util.Calendar.getInstance()) ?: return null
+        return if (StoryStages.exists(this, id)) id else null
+    }
+
     /** The scene behind the Seasonal and Galaxy G backgrounds ("" for every other background). */
     private fun sceneNow(): String = when (wallpaperNow()) {
         "season" -> prefs.previewScene.ifEmpty { Seasons.sceneFor(java.util.Calendar.getInstance()) }
@@ -224,7 +231,7 @@ class HomeActivity : AppCompatActivity() {
             refreshSports()
             refreshWeather()
             applyNight(false)
-            if (prefs.wallpaper == "rotate") applyTheme()      // picks up the next wallpaper when it is time
+            if (prefs.wallpaper == "rotate" || wallpaperNow() == "season") applyTheme()   // next wallpaper, or the next holiday stage at midnight / Thanksgiving noon
             refreshFromNetwork()                               // checks for a new version about every 10 minutes while idle
             handler.postDelayed(this, 15_000)
         }
@@ -876,7 +883,8 @@ class HomeActivity : AppCompatActivity() {
             sportsSignature = ""
         }
         applyContentPadding()
-        val bgKey = wallpaperNow() + ":" + sceneNow() + ":" + motionNow() + ":" + WeatherRepository.kind + ":" + prefs.accent + ":" + prefs.edge + ":" + prefs.beam
+        val story = storyNow()
+        val bgKey = wallpaperNow() + ":" + sceneNow() + ":" + (story ?: "") + ":" + motionNow() + ":" + WeatherRepository.kind + ":" + prefs.accent + ":" + prefs.edge + ":" + prefs.beam
         if (appliedBackground != bgKey) {
             appliedBackground = bgKey
             bgHolder.removeAllViews()
@@ -888,7 +896,8 @@ class HomeActivity : AppCompatActivity() {
                 }
                 "trace" -> LightTraceView(this, motionNow(), accent, Themes.beamColor(prefs.beam), if (prefs.edge == "wide") 42f else 18f)
                 "nebula", "sunset", "ocean", "city", "grid", "mountains" -> SceneView(this, wp, accent)
-                "season", "galaxy_g" -> SeasonView(this, sceneNow(), motionNow(), WeatherRepository.kind)
+                "season", "galaxy_g" -> if (story != null) StoryVideoView(this, story, motionNow() != "off")
+                                        else SeasonView(this, sceneNow(), motionNow(), WeatherRepository.kind)
                 in Themes.pictureKeys -> PictureTraceView(this, wp, motionNow(), Themes.beamColor(prefs.beam))
                 "aurora" -> AuroraView(this, motionNow())
                 "plain" -> null

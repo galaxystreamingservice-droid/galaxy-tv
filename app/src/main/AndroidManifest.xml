@@ -80,6 +80,11 @@
             android:exported="false"
             android:screenOrientation="landscape" />
 
+        <activity
+            android:name=".SeasonPreviewActivity"
+            android:exported="false"
+            android:screenOrientation="landscape" />
+
         <!-- Galaxy Media's own screensaver (set by the laptop script with -Screensaver Galaxy) -->
         <service
             android:name=".GalaxyDream"

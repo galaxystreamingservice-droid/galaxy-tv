@@ -238,6 +238,7 @@ class SettingsActivity : AppCompatActivity() {
             recreate()
         }
         out += Row("Reset my look", "Press to reset", false) { confirmReset() }
+        out += Row("Watch all season scenes", "Play", false) { startActivity(Intent(this, SeasonPreviewActivity::class.java)) }   // TEMPORARY
         out += Row("Setup & updates", "Open", false) { startActivity(Intent(this, MainActivity::class.java)) }
         out += Row("Done", "Back to home", false) { finish() }
         return out
@@ -259,6 +260,7 @@ class SettingsActivity : AppCompatActivity() {
     /** One short, plain sentence under a row, so nobody has to guess what it does. */
     private val hints = mapOf(
         "Your name" to "Shown in the greeting on the home screen.",
+        "Watch all season scenes" to "Plays every holiday scene back to back. Left and right skip, Back exits.",
         "Highlight color" to "The color of the glow around whatever you select.",
         "Sports scores" to "Live scores along the bottom of the screen.",
         "My teams" to "Pick your teams so their games show first.",

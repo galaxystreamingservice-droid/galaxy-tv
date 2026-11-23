@@ -11,8 +11,8 @@ android {
         applicationId = "com.galaxymedia.tvsetup"
         minSdk = 25 // Fire OS 6+ (Fire TV Stick 4K 1st gen and newer)
         targetSdk = 34
-        versionCode = 72
-        versionName = "0.13.16"
+        versionCode = 73
+        versionName = "0.13.17"
     }
 
     // One fixed signing key, so every build installs over the last one without an uninstall.
@@ -42,6 +42,8 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
+    // Holiday clips are read straight from the APK (openFd), so keep them uncompressed.
+    androidResources { noCompress += listOf("mp4") }
     packaging {
         resources.excludes += setOf(
             "META-INF/DEPENDENCIES", "META-INF/LICENSE*", "META-INF/NOTICE*",
