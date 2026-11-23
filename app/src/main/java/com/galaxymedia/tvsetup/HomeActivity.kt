@@ -150,6 +150,7 @@ class HomeActivity : AppCompatActivity() {
 
     /** Today's day-by-day holiday clip (Thanksgiving week, Dec 1–25), or null for the regular seasonal picture. */
     private fun storyNow(): String? {
+        if (StoryTest.active(prefs)) return StoryTest.stageNow(this)?.id
         if (wallpaperNow() != "season" || prefs.previewScene.isNotEmpty()) return null
         val id = StoryStages.stageFor(java.util.Calendar.getInstance()) ?: return null
         return if (StoryStages.exists(this, id)) id else null
@@ -224,6 +225,21 @@ class HomeActivity : AppCompatActivity() {
     private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
     private fun dpf(v: Float): Float = v * resources.displayMetrics.density
 
+    private val storyTest by lazy { StoryTest(this) }
+    private val testTick = object : Runnable {
+        override fun run() {
+            if (StoryTest.active(prefs)) {
+                storyTest.resume()
+                applyTheme()
+                storyTest.update(prefs)
+                handler.postDelayed(this, 1_000)
+            } else {
+                storyTest.stop()
+                applyTheme()
+            }
+        }
+    }
+
     private val tick = object : Runnable {
         override fun run() {
             updateGreeting()
@@ -281,6 +297,8 @@ class HomeActivity : AppCompatActivity() {
         scheduleQuiet()
         handler.removeCallbacks(tick)
         handler.postDelayed(tick, 15_000)
+        handler.removeCallbacks(testTick)
+        if (StoryTest.active(prefs)) handler.post(testTick) else storyTest.stop()
         refreshFromNetwork()
         refreshSports()
         refreshWeather()
@@ -296,6 +314,8 @@ class HomeActivity : AppCompatActivity() {
         pausedAt = SystemClock.elapsedRealtime()
         stopMeasure()
         handler.removeCallbacks(tick)
+        handler.removeCallbacks(testTick)
+        storyTest.pause()
         handler.removeCallbacks(quietRunnable)
         handler.removeCallbacks(saverRunnable)
         handler.removeCallbacks(tickerRunnable)
@@ -889,15 +909,16 @@ class HomeActivity : AppCompatActivity() {
             appliedBackground = bgKey
             bgHolder.removeAllViews()
             val wp = wallpaperNow()
-            val v: View? = when (wp) {
+            val oldScene = story?.let { StoryStages.oldScene(it) }
+            val v: View? = if (oldScene != null) SeasonView(this, oldScene, if (StoryTest.active(prefs)) "normal" else motionNow(), WeatherRepository.kind)
+                else if (story != null) StoryVideoView(this, story, StoryTest.active(prefs) || motionNow() != "off") else when (wp) {
                 "logo" -> ImageView(this).apply {
                     scaleType = ImageView.ScaleType.CENTER_CROP
                     setImageResource(R.drawable.galaxy_background)
                 }
                 "trace" -> LightTraceView(this, motionNow(), accent, Themes.beamColor(prefs.beam), if (prefs.edge == "wide") 42f else 18f)
                 "nebula", "sunset", "ocean", "city", "grid", "mountains" -> SceneView(this, wp, accent)
-                "season", "galaxy_g" -> if (story != null) StoryVideoView(this, story, motionNow() != "off")
-                                        else SeasonView(this, sceneNow(), motionNow(), WeatherRepository.kind)
+                "season", "galaxy_g" -> SeasonView(this, sceneNow(), motionNow(), WeatherRepository.kind)
                 in Themes.pictureKeys -> PictureTraceView(this, wp, motionNow(), Themes.beamColor(prefs.beam))
                 "aurora" -> AuroraView(this, motionNow())
                 "plain" -> null

@@ -170,6 +170,11 @@ class Prefs(ctx: Context) {
         set(v) = sp.edit().putInt("nightStart", v).apply()
 
     /** Starfield motion: "off" (still), "reduced" (slow, subtle twinkle) or "normal". */
+    /** TEMPORARY Season test: until this time the home screen cycles the holiday scenes every 5 seconds. */
+    var storyTestUntil: Long
+        get() = sp.getLong("storyTestUntil", 0L)
+        set(v) = sp.edit().putLong("storyTestUntil", v).apply()
+
     /** A season picked in Settings so it can be looked at today. It goes back to the real date after 30 minutes. */
     var previewScene: String
         get() = if (System.currentTimeMillis() > sp.getLong("previewUntil", 0L)) "" else (sp.getString("previewScene", "") ?: "")

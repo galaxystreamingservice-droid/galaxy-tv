@@ -239,6 +239,9 @@ class SettingsActivity : AppCompatActivity() {
         }
         out += Row("Reset my look", "Press to reset", false) { confirmReset() }
         out += Row("Watch all season scenes", "Play", false) { startActivity(Intent(this, SeasonPreviewActivity::class.java)) }   // TEMPORARY
+        out += Row("Season test", if (StoryTest.active(prefs)) "On, ${((prefs.storyTestUntil - System.currentTimeMillis()) / 60_000L) + 1} min left" else "Off", true) {   // TEMPORARY
+            prefs.storyTestUntil = if (StoryTest.active(prefs)) 0L else System.currentTimeMillis() + StoryTest.LENGTH_MS
+        }
         out += Row("Setup & updates", "Open", false) { startActivity(Intent(this, MainActivity::class.java)) }
         out += Row("Done", "Back to home", false) { finish() }
         return out
@@ -261,6 +264,7 @@ class SettingsActivity : AppCompatActivity() {
     private val hints = mapOf(
         "Your name" to "Shown in the greeting on the home screen.",
         "Watch all season scenes" to "Plays every holiday scene back to back. Left and right skip, Back exits.",
+        "Season test" to "For 10 minutes the home screen changes holiday scene every 5 seconds and shows how hard the stick is working.",
         "Highlight color" to "The color of the glow around whatever you select.",
         "Sports scores" to "Live scores along the bottom of the screen.",
         "My teams" to "Pick your teams so their games show first.",

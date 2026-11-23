@@ -54,7 +54,9 @@ class SeasonPreviewActivity : Activity() {
         index = ((i % stages.size) + stages.size) % stages.size
         val st = stages[index]
         holder.removeAllViews()
-        val v = if (StoryStages.exists(this, st.id)) StoryVideoView(this, st.id, true)
+        val old = StoryStages.oldScene(st.id)
+        val v = if (old != null) SeasonView(this, old, "normal")
+                else if (StoryStages.exists(this, st.id)) StoryVideoView(this, st.id, true)
                 else SeasonView(this, if (st.id.startsWith("tg")) "thanksgiving" else "christmas", "normal")
         holder.addView(v, FrameLayout.LayoutParams(-1, -1))
         label.text = st.label

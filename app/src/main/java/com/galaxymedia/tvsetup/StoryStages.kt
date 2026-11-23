@@ -13,8 +13,12 @@ object StoryStages {
 
     private var have: Set<String>? = null
 
-    /** True when the clip for this stage is built into the app. */
+    /** Stand-in stages that show the regular seasonal picture: the scene name, or null for a real clip. */
+    fun oldScene(id: String): String? = if (id.startsWith("old_")) id.removePrefix("old_") else null
+
+    /** True when the clip for this stage is built into the app (stand-ins always count). */
     fun exists(ctx: Context, id: String): Boolean {
+        if (oldScene(id) != null) return true
         val s = have ?: try {
             (ctx.applicationContext.assets.list("story") ?: emptyArray()).toSet()
         } catch (e: Exception) { emptySet() }.also { have = it }
@@ -55,7 +59,7 @@ object StoryStages {
     /** Every stage in order, with a label, for "Watch all season scenes" in Settings. */
     fun all(): List<Stage> {
         val out = ArrayList<Stage>()
-        out += Stage("tg_strut", "Thanksgiving · Nov 1 to the Sunday before")
+        out += Stage("old_thanksgiving", "Thanksgiving · Nov 1 to the Sunday before")
         out += Stage("tg_brine", "Thanksgiving · Monday and Tuesday: the brine")
         out += Stage("tg_fryer", "Thanksgiving · Wednesday to Thursday noon: the fryer")
         out += Stage("tg_dinner", "Thanksgiving · Thursday dinner")
@@ -70,6 +74,14 @@ object StoryStages {
             }
             out += Stage("xm_d%02d".format(d), label)
         }
+        // Holidays still waiting for their new art: today's simple seasonal picture stands in ("old_" + scene).
+        out += Stage("old_newyear", "New Year · current picture (new art coming)")
+        out += Stage("old_valentines", "Valentine's · current picture (new art coming)")
+        out += Stage("old_stpatricks", "St. Patrick's · current picture (new art coming)")
+        out += Stage("old_easter", "Easter · current picture (new art coming)")
+        out += Stage("old_july4", "July 4 · current picture (new art coming)")
+        out += Stage("old_halloween", "Halloween · current picture (new art coming)")
+        out += Stage("old_galaxy", "Between holidays · Galaxy picture")
         return out
     }
 }
