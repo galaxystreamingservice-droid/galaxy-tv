@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The shared premium pop-up: smoked black glass with a thin champagne-gold line. -->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:insetLeft="20dp" android:insetRight="20dp" android:insetTop="20dp" android:insetBottom="20dp">
+    <shape android:shape="rectangle">
+        <corners android:radius="18dp" />
+        <solid android:color="#F50B0907" />
+        <stroke android:width="2dp" android:color="#99D6B87A" />
+    </shape>
+</inset>
