@@ -263,7 +263,7 @@ class SettingsActivity : AppCompatActivity() {
     private val hints = mapOf(
         "Your name" to "Shown in the greeting on the home screen.",
         "Watch all season scenes" to "Plays every holiday scene back to back. Left and right skip, Back exits.",
-        "Season test" to "For 10 minutes the home screen changes holiday scene every 5 seconds and shows how hard the stick is working.",
+        "Season test" to "For 10 minutes the home screen plays every holiday day by day (scene, greeting, countdown and app decoration), 5 seconds each, and shows how hard the stick is working.",
         "Highlight color" to "The color of the glow around whatever you select.",
         "Sports scores" to "Live scores along the bottom of the screen.",
         "My teams" to "Pick your teams so their games show first.",

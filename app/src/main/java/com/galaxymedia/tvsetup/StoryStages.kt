@@ -59,6 +59,35 @@ object StoryStages {
         "11 jingle bells", "12 drummers drumming"
     )
 
+    /**
+     * The pretend date for a stage, so the Season test shows that day's greeting, countdown, date line and
+     * tile decoration too (not just the picture). Evening time, except Thanksgiving dinner and the midnight launch.
+     */
+    fun dateFor(id: String): Calendar {
+        val y = Calendar.getInstance().get(Calendar.YEAR)
+        fun d(m: Int, day: Int, h: Int = 20) = Calendar.getInstance().apply { clear(); set(y, m - 1, day, h, 0) }
+        fun plus(c: Calendar, n: Int, h: Int = 20) = (c.clone() as Calendar).apply { add(Calendar.DAY_OF_MONTH, n); set(Calendar.HOUR_OF_DAY, h) }
+        val tg = Seasons.thanksgiving(y)
+        return when {
+            id == "old_thanksgiving" -> d(11, 10)
+            id == "tg_brine" -> plus(tg, -3)
+            id == "tg_fryer" -> plus(tg, -1)
+            id == "tg_dinner" -> plus(tg, 0, 18)
+            id == "tg_leftovers" -> plus(tg, 1)
+            id.startsWith("xm_d") -> d(12, id.removePrefix("xm_d").toIntOrNull() ?: 1)
+            id == "ny_launch" -> d(1, 1, 0)
+            id.startsWith("ny_jan") -> d(1, id.removePrefix("ny_jan").toIntOrNull() ?: 1)
+            id.startsWith("ny_d") -> d(12, id.removePrefix("ny_d").toIntOrNull() ?: 31)
+            id == "ny_galaxy" -> d(1, 15)
+            id == "old_valentines" -> d(2, 12)
+            id == "old_stpatricks" -> d(3, 15)
+            id == "old_easter" -> plus(Seasons.easterDate(y), -2)
+            id == "old_july4" -> d(7, 2)
+            id == "old_halloween" -> d(10, 28)
+            else -> d(9, 10)
+        }
+    }
+
     /** Every stage in order, with a label, for "Watch all season scenes" in Settings. */
     fun all(): List<Stage> {
         val out = ArrayList<Stage>()
