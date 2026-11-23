@@ -118,7 +118,7 @@
  "christmas": {
   "name": "Christmas",
   "greeting": "MERRY CHRISTMAS",
-  "accent": "#FF5A5A",
+  "accent": "#D6B87A",
   "still": "christmas_still.webp",
   "base": "christmas_base.webp",
   "emitters": [

@@ -98,11 +98,14 @@ object StoryStages {
         out += Stage("tg_leftovers", "Thanksgiving · Friday to Nov 30: leftovers")
         for (d in 1..25) {
             val label = when {
-                d <= 7 -> "Christmas · Dec $d · ${25 - d} days to go · a new present each day"
-                d <= 13 -> "Christmas · Dec $d · ${25 - d} days to go · skating week"
-                d == 24 -> "Christmas Eve · Day 11: ${twelve[10]} · Santa flies by"
-                d == 25 -> "Christmas Day · Day 12: ${twelve[11]} · the big present"
-                else -> "12 Days of Christmas · Dec $d · Day ${d - 13}: ${twelve[d - 14]}"
+                d == 1 -> "Christmas · Dec 1 · the kids arrive, only the G star shines"
+                d <= 8 -> "Christmas · Dec $d · lighting the tree, ornament $d"
+                d == 13 -> "Christmas · Dec 13 · the very long letter (and the puppy)"
+                d <= 17 -> "Christmas · Dec $d · letters to Santa, ${d - 8} in the sky"
+                d == 21 -> "Christmas · Dec 21 · longest night, the reindeer touch noses"
+                d <= 23 -> "Christmas · Dec $d · Santa is on his way"
+                d == 24 -> "Christmas Eve · the night before Christmas"
+                else -> "Christmas morning"
             }
             out += Stage("xm_d%02d".format(d), label)
         }
