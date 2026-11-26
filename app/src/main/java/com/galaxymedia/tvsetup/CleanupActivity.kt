@@ -231,7 +231,7 @@ class CleanupActivity : AppCompatActivity() {
             val size = tempSize()
             val b = button("Clear Galaxy Media temp files (${fmt(size)})") {
                 val freed = clearTemp()
-                Toast.makeText(this, "Cleared ${fmt(freed)}.", Toast.LENGTH_SHORT).show()
+                Gold.toast(this, "Cleared ${fmt(freed)}.", Toast.LENGTH_SHORT)
                 render()
             }
             buttons.addView(b, buttonParams())
@@ -250,7 +250,7 @@ class CleanupActivity : AppCompatActivity() {
         // "Remind me in a week" gets its own row, so the main row never squeezes it into a tall column.
         if (step == 0) body.addView(button("Remind me in a week") {
             prefs.cleanupSnoozeUntil = System.currentTimeMillis() + 7 * 86_400_000L
-            Toast.makeText(this, "OK, I'll remind you in a week.", Toast.LENGTH_LONG).show()
+            Gold.toast(this, "OK, I'll remind you in a week.", Toast.LENGTH_LONG)
             finish()
         }, LinearLayout.LayoutParams(WRAP, WRAP).apply { topMargin = dp(4) })
         val ft = focusTarget
@@ -270,7 +270,7 @@ class CleanupActivity : AppCompatActivity() {
     private fun finishCleanup() {
         prefs.lastCleanup = System.currentTimeMillis()
         prefs.cleanupSnoozeUntil = 0L
-        Toast.makeText(this, "Maintenance done. Thanks!", Toast.LENGTH_LONG).show()
+        Gold.toast(this, "Maintenance done. Thanks!", Toast.LENGTH_LONG)
         finish()
     }
 

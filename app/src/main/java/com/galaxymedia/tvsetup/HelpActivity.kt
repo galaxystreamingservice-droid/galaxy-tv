@@ -178,6 +178,9 @@ class HelpActivity : AppCompatActivity() {
         if (prefs.highContrast) {
             bgColor = Color.BLACK; cardColor = Color.BLACK
             textColor = Color.WHITE; mutedColor = Color.WHITE
+        } else {
+            bgColor = Gold.BG; cardColor = Color.parseColor("#0B0907")
+            textColor = Gold.IVORY; mutedColor = Gold.MUTED; accent = Gold.GOLD
         }
         val root = FrameLayout(this).apply { setBackgroundColor(bgColor) }
         body = LinearLayout(this).apply {
@@ -205,7 +208,8 @@ class HelpActivity : AppCompatActivity() {
             text = t
             textSize = size * prefs.textScale
             setTextColor(color)
-            if (bold) setTypeface(null, Typeface.BOLD)
+            if (Gold.on(prefs)) typeface = if (bold) Gold.caps(this@HelpActivity) else Gold.serif(this@HelpActivity)
+            else if (bold) setTypeface(null, Typeface.BOLD)
             if (top > 0) setPadding(0, dp(top), 0, 0)
         }
 
@@ -324,6 +328,7 @@ class HelpActivity : AppCompatActivity() {
             text = label
             textSize = 20f * prefs.textScale
             setTextColor(textColor)
+            if (Gold.on(prefs)) typeface = Gold.serif(this@HelpActivity)
             gravity = Gravity.CENTER
             setPadding(dp(24), dp(14), dp(24), dp(14))
             isFocusable = true
@@ -335,8 +340,8 @@ class HelpActivity : AppCompatActivity() {
             addState(intArrayOf(), cardBg(14f))
         }
         t.setOnFocusChangeListener { v, has ->
-            t.setTextColor(if (has) Color.BLACK else textColor)
-            t.setTypeface(null, if (has) Typeface.BOLD else Typeface.NORMAL)
+            t.setTextColor(if (has) (if (Gold.on(prefs)) Gold.GOLD_HI else Color.BLACK) else textColor)
+            if (!Gold.on(prefs)) t.setTypeface(null, if (has) Typeface.BOLD else Typeface.NORMAL)
             val s = if (has) 1.04f else 1f
             v.animate().scaleX(s).scaleY(s).setDuration(120).start()
         }
@@ -348,10 +353,16 @@ class HelpActivity : AppCompatActivity() {
         shape = GradientDrawable.RECTANGLE
         cornerRadius = dpf(radiusDp)
         setColor(cardColor)
-        if (prefs.highContrast) setStroke(dp(2), Color.WHITE) else setStroke(dp(1), Color.parseColor("#33FFFFFF"))
+        if (prefs.highContrast) setStroke(dp(2), Color.WHITE) else setStroke(dp(1), (Gold.GOLD and 0x00FFFFFF) or 0x55000000)
     }
 
     private fun ringBg(radiusDp: Float): Drawable {
+        if (Gold.on(prefs)) return GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = dpf(radiusDp)
+            setColor(Color.parseColor("#1A150C"))
+            setStroke(dp(3), Gold.GOLD_HI)
+        }
         fun layer(r: Float, c: Int) = GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
             cornerRadius = dpf(maxOf(r, 0f))

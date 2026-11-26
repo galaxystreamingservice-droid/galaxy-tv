@@ -33,7 +33,7 @@ class PayActivity : AppCompatActivity() {
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Color.parseColor("#050816"))
+            setBackgroundColor(Gold.page(prefs, Color.parseColor("#050816")))
             setPadding(dp(56), dp(24), dp(56), dp(18))
         }
         body = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
@@ -60,31 +60,27 @@ class PayActivity : AppCompatActivity() {
         text = label
         textSize = 20f
         gravity = Gravity.CENTER
-        setTextColor(Color.WHITE)
+        setTextColor(Gold.buttonText(prefs, false))
         setPadding(dp(18), 0, dp(18), 0)
         isFocusable = true
         isClickable = true
         background = btnBg(false)
         setOnFocusChangeListener { v, has ->
             v.background = btnBg(has)
-            (v as TextView).setTextColor(if (has) Color.BLACK else Color.WHITE)
+            (v as TextView).setTextColor(Gold.buttonText(prefs, has))
         }
         setOnClickListener { onClick() }
     }
 
-    private fun btnBg(focused: Boolean) = GradientDrawable().apply {
-        cornerRadius = dp(12).toFloat()
-        if (focused) { setColor(accent); setStroke(dp(3), Color.WHITE) }
-        else { setColor(Color.parseColor("#14203D")); setStroke(dp(1), Color.parseColor("#2A3A63")) }
-    }
+    private fun btnBg(focused: Boolean) = Gold.button(prefs, ::dp, accent, Color.parseColor("#14203D"), Color.parseColor("#2A3A63"), focused)
 
     private fun say(title: String, message: String) {
         body.removeAllViews()
         body.addView(TextView(this).apply {
-            text = title; textSize = 30f; setTextColor(Color.WHITE); setTypeface(null, Typeface.BOLD)
+            text = title; textSize = 30f; Gold.title(prefs, context, this)
         })
         body.addView(TextView(this).apply {
-            text = message; textSize = 20f; setTextColor(Color.parseColor("#9FB3C8")); setPadding(0, dp(12), 0, 0)
+            text = message; textSize = 20f; setTextColor(Gold.body(prefs, Color.parseColor("#9FB3C8"))); setPadding(0, dp(12), 0, 0)
         })
     }
 
@@ -95,7 +91,7 @@ class PayActivity : AppCompatActivity() {
         val head = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         head.addView(TextView(this).apply {
             text = p.optString("title", "Renew your VPN")
-            textSize = 30f; setTextColor(Color.WHITE); setTypeface(null, Typeface.BOLD)
+            textSize = 30f; Gold.title(prefs, context, this)
         }, LinearLayout.LayoutParams(0, -2, 1f))
         val who = prefs.userName
         if (who.isNotBlank()) head.addView(TextView(this).apply {
@@ -108,7 +104,7 @@ class PayActivity : AppCompatActivity() {
         if (note.isNotBlank()) body.addView(TextView(this).apply {
             text = note
             textSize = 19f
-            setTextColor(Color.WHITE)
+            setTextColor(if (Gold.on(prefs)) Gold.IVORY else Color.WHITE)
             setPadding(0, dp(6), 0, dp(8))
         })
 
@@ -143,7 +139,7 @@ class PayActivity : AppCompatActivity() {
                 if (isZelle) "Don't use your phone camera. Open your bank's app, go to Zelle, tap the QR code icon, then scan this code." else ""
             }
             if (steps.isNotBlank()) card.addView(TextView(this).apply {
-                text = steps; textSize = 15f; setTextColor(Color.parseColor("#FFE08A")); gravity = Gravity.CENTER
+                text = steps; textSize = 15f; setTextColor(if (Gold.on(prefs)) Gold.GOLD else Color.parseColor("#FFE08A")); gravity = Gravity.CENTER
                 setTypeface(null, Typeface.BOLD)
             }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(4) })
             val qr = m.optString("qr")
@@ -164,7 +160,7 @@ class PayActivity : AppCompatActivity() {
             // when the default Zelle steps are shown.
             val note = if (isZelle && customSteps.isBlank()) "" else m.optString("note")
             if (note.isNotBlank()) card.addView(TextView(this).apply {
-                text = note; textSize = 15f; setTextColor(Color.parseColor("#C9D6E8")); gravity = Gravity.CENTER
+                text = note; textSize = 15f; setTextColor(Gold.body(prefs, Color.parseColor("#C9D6E8"))); gravity = Gravity.CENTER
             })
             row.addView(card, LinearLayout.LayoutParams(0, -2, 1f).apply { setMargins(dp(5), 0, dp(5), 0) })
         }

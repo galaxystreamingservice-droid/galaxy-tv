@@ -166,7 +166,7 @@ class Prefs(ctx: Context) {
 
     /** Night dimming start hour (18 to 23), or -1 for off. Ends at 6 AM. */
     var nightStart: Int
-        get() = sp.getInt("nightStart", -1)
+        get() = sp.getInt("nightStart", 22)   // v0.14: on by itself from 10 PM (Galaxy Media's screen only)
         set(v) = sp.edit().putInt("nightStart", v).apply()
 
     /** Starfield motion: "off" (still), "reduced" (slow, subtle twinkle) or "normal". */
@@ -233,6 +233,23 @@ class Prefs(ctx: Context) {
     var cleanupEvery: String
         get() = sp.getString("cleanupEvery", "monthly") ?: "monthly"
         set(v) = sp.edit().putString("cleanupEvery", v).apply()
+
+    /** Message board: the raw "_board" entry last fetched, which one we saw first and when, and the last note shown. */
+    var boardRaw: String
+        get() = sp.getString("boardRaw", "") ?: ""
+        set(v) = sp.edit().putString("boardRaw", v).apply()
+
+    var boardId: String
+        get() = sp.getString("boardId", "") ?: ""
+        set(v) = sp.edit().putString("boardId", v).apply()
+
+    var boardSeenAt: Long
+        get() = sp.getLong("boardSeenAt", 0L)
+        set(v) = sp.edit().putLong("boardSeenAt", v).apply()
+
+    var boardNoteDone: String
+        get() = sp.getString("boardNoteDone", "") ?: ""
+        set(v) = sp.edit().putString("boardNoteDone", v).apply()
 
     var lastCleanup: Long
         get() = sp.getLong("lastCleanup", 0L)

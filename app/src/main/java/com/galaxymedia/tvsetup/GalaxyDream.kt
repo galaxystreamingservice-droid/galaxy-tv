@@ -41,7 +41,8 @@ class GalaxyDream : DreamService() {
             format12Hour = "h:mm"
             format24Hour = "h:mm"
             textSize = 96f
-            setTextColor(Color.argb(210, 255, 255, 255))
+            if (Gold.on(prefs)) { typeface = Gold.serif(this@GalaxyDream); setTextColor(Color.argb(220, 240, 218, 168)) }
+            else setTextColor(Color.argb(210, 255, 255, 255))
         }
         frame.addView(tc, FrameLayout.LayoutParams(-2, -2))
         root = frame

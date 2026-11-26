@@ -49,19 +49,18 @@ class HealthActivity : AppCompatActivity() {
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Color.parseColor("#050816"))
+            setBackgroundColor(Gold.page(prefs, Color.parseColor("#050816")))
             setPadding(dp(56), dp(28), dp(56), dp(22))
         }
         root.addView(TextView(this).apply {
             text = "Stick health"
             textSize = 30f
-            setTextColor(Color.WHITE)
-            setTypeface(null, Typeface.BOLD)
+            Gold.title(prefs, context, this)
         })
         root.addView(TextView(this).apply {
             text = "What is slowing things down? This looks at Wi-Fi, speed, memory and heat."
             textSize = 16f
-            setTextColor(Color.parseColor("#9FB3C8"))
+            setTextColor(Gold.body(prefs, Color.parseColor("#9FB3C8")))
             setPadding(0, dp(2), 0, dp(10))
         })
         body = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
@@ -96,13 +95,13 @@ class HealthActivity : AppCompatActivity() {
         text = label
         textSize = 18f
         gravity = Gravity.CENTER
-        setTextColor(Color.WHITE)
+        setTextColor(Gold.buttonText(prefs, false))
         isFocusable = true
         isClickable = true
         background = bg(false)
         setOnFocusChangeListener { v, has ->
             v.background = bg(has)
-            (v as TextView).setTextColor(if (has) Color.BLACK else Color.WHITE)
+            (v as TextView).setTextColor(Gold.buttonText(prefs, has))
         }
         setOnClickListener { onClick() }
     }
@@ -117,7 +116,7 @@ class HealthActivity : AppCompatActivity() {
 
     private fun row(label: String, value: String, color: Int) {
         val r = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(2), 0, dp(2)) }
-        r.addView(TextView(this).apply { text = label; textSize = 18f; setTextColor(Color.parseColor("#C9D6E8")) }, LinearLayout.LayoutParams(dp(260), -2))
+        r.addView(TextView(this).apply { text = label; textSize = 18f; setTextColor(Gold.body(prefs, Color.parseColor("#C9D6E8"))) }, LinearLayout.LayoutParams(dp(260), -2))
         r.addView(TextView(this).apply { text = value; textSize = 18f; setTextColor(color); setTypeface(null, Typeface.BOLD) }, LinearLayout.LayoutParams(0, -2, 1f))
         body.addView(r)
     }
@@ -136,8 +135,21 @@ class HealthActivity : AppCompatActivity() {
     private fun wifi(): Triple<Int, Int, Int>? = try {
         val wm = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
         val i = wm.connectionInfo
-        if (i == null || i.networkId == -1 || i.rssi <= -127) null else Triple(i.rssi, i.frequency, i.linkSpeed)
+        // Android 10+ hides networkId (-1) from apps without location permission, so it can't decide "on Wi-Fi".
+        if (i == null || i.rssi <= -127 || transport() != "wifi") null else Triple(i.rssi, i.frequency, i.linkSpeed)
     } catch (e: Exception) { null }
+
+    /** How the stick is online right now: "wifi", "ethernet", "other" or "none". */
+    private fun transport(): String = try {
+        val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+        val caps = cm.getNetworkCapabilities(cm.activeNetwork)
+        when {
+            caps == null -> "none"
+            caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) -> "wifi"
+            caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_ETHERNET) -> "ethernet"
+            else -> "other"
+        }
+    } catch (e: Exception) { "other" }
 
     private fun thermal(): Int = try {
         if (Build.VERSION.SDK_INT >= 29) (getSystemService(Context.POWER_SERVICE) as PowerManager).currentThermalStatus else 0
@@ -153,8 +165,14 @@ class HealthActivity : AppCompatActivity() {
         var weakSignal = false
         var fairSignal = false
         if (w == null) {
-            row("Connection", "Not on Wi-Fi (wired, or offline)", warn)
-            advice += warn to "This stick is not on Wi-Fi right now (wired, or offline)."
+            when (transport()) {
+                "ethernet" -> row("Connection", "Connected by cable", good)
+                "none" -> {
+                    row("Connection", "Offline", bad)
+                    advice += bad to "This stick is offline. Check the Wi-Fi in Settings > Network, or restart the router."
+                }
+                else -> row("Connection", "Connected (Wi-Fi details hidden by this stick)", good)
+            }
         } else {
             val (rssi, freq, link) = w
             val label = when {
@@ -166,7 +184,7 @@ class HealthActivity : AppCompatActivity() {
             weakSignal = rssi < -75
             fairSignal = rssi < -67
             row("Signal", "$label  ($rssi dBm)", if (weakSignal) bad else if (fairSignal) warn else good)
-            val band = if (freq in 2400..2500) "2.4 GHz" else if (freq >= 4900) "5 GHz" else "?"
+            val band = if (freq in 2400..2500) "2.4 GHz" else if (freq >= 5925) "6 GHz (Wi-Fi 6E)" else if (freq >= 4900) "5 GHz" else "?"
             row("Band", band, if (band == "2.4 GHz") warn else good)
             row("Link speed", "$link Mbps  (the radio's top speed, not your real speed)", Color.WHITE)
             if (weakSignal) advice += bad to "Weak Wi-Fi signal. Move the router closer to this TV, or use a wired connection."
@@ -294,7 +312,7 @@ class HealthActivity : AppCompatActivity() {
             val after = availMb()
             val gained = after - before
             val msg = if (gained >= 10) "Freed about $gained MB ($before to $after MB free)" else "Nothing much to free right now ($after MB free)"
-            Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+            Gold.toast(this, msg, Toast.LENGTH_LONG)
             render()
         }, 2000)
     }

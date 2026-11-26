@@ -40,19 +40,18 @@ class AllAppsActivity : AppCompatActivity() {
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Color.parseColor("#050816"))
+            setBackgroundColor(Gold.page(prefs, Color.parseColor("#050816")))
             setPadding(dp(56), dp(32), dp(56), dp(24))
         }
         root.addView(TextView(this).apply {
             text = "All apps"
             textSize = 32f
-            setTextColor(Color.WHITE)
-            setTypeface(null, Typeface.BOLD)
+            Gold.title(prefs, context, this)
         })
         root.addView(TextView(this).apply {
             text = "Press OK to open an app. Hold OK on an app to remove it. Back returns to Galaxy Media."
             textSize = 16f
-            setTextColor(Color.parseColor("#9FB3C8"))
+            setTextColor(Gold.body(prefs, Color.parseColor("#9FB3C8")))
             setPadding(0, dp(4), 0, dp(14))
         })
 
@@ -63,7 +62,7 @@ class AllAppsActivity : AppCompatActivity() {
             list.addView(TextView(this).apply {
                 text = "No apps found."
                 textSize = 20f
-                setTextColor(Color.WHITE)
+                setTextColor(if (Gold.on(prefs)) Gold.IVORY else Color.WHITE)
             })
         }
         entries.chunked(columns).forEach { rowItems ->
@@ -124,28 +123,19 @@ class AllAppsActivity : AppCompatActivity() {
             .setMessage("Fire TV will ask you to confirm. You can install it again later.")
             .setPositiveButton("Remove") { _, _ ->
                 try { startActivity(Intent(Intent.ACTION_DELETE, Uri.parse("package:${e.pkg}"))) }
-                catch (ex: Exception) { Toast.makeText(this, "Couldn't start the removal.", Toast.LENGTH_LONG).show() }
+                catch (ex: Exception) { Gold.toast(this, "Couldn't start the removal.", Toast.LENGTH_LONG) }
             }
             .setNegativeButton("Cancel", null)
             .show()
     }
 
-    private fun bg(focused: Boolean): GradientDrawable = GradientDrawable().apply {
-        cornerRadius = dp(14).toFloat()
-        if (focused) {
-            setColor(accent)
-            setStroke(dp(3), Color.WHITE)
-        } else {
-            setColor(Color.parseColor("#14203D"))
-            setStroke(dp(1), Color.parseColor("#2A3A63"))
-        }
-    }
+    private fun bg(focused: Boolean): GradientDrawable = Gold.button(prefs, ::dp, accent, Color.parseColor("#14203D"), Color.parseColor("#2A3A63"), focused).apply { cornerRadius = dp(14).toFloat() }
 
     private fun tile(e: Entry): View {
         val label = TextView(this).apply {
             text = e.label
             textSize = 15f
-            setTextColor(Color.WHITE)
+            setTextColor(Gold.buttonText(prefs, false))
             gravity = Gravity.CENTER
             maxLines = 2
             ellipsize = TextUtils.TruncateAt.END
@@ -163,13 +153,13 @@ class AllAppsActivity : AppCompatActivity() {
         }
         box.setOnFocusChangeListener { v, has ->
             v.background = bg(has)
-            label.setTextColor(if (has) Color.BLACK else Color.WHITE)
+            label.setTextColor(Gold.buttonText(prefs, has))
             v.animate().scaleX(if (has) 1.06f else 1f).scaleY(if (has) 1.06f else 1f).setDuration(120).start()
         }
         box.setOnLongClickListener { confirmRemove(e); true }
         box.setOnClickListener {
             try { startActivity(e.intent) }
-            catch (ex: Exception) { Toast.makeText(this, "Couldn't open ${e.label}", Toast.LENGTH_SHORT).show() }
+            catch (ex: Exception) { Gold.toast(this, "Couldn't open ${e.label}", Toast.LENGTH_SHORT) }
         }
         return box
     }

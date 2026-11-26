@@ -9,6 +9,7 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.view.View
+import android.widget.Toast
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -71,6 +72,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         styleButtons()
+        stylePage()
         refreshStatus()
         if (prefs.settingsUrl.isBlank()) log("Press 'Set settings file URL' and enter your setup code.")
 
@@ -148,8 +150,29 @@ class MainActivity : AppCompatActivity() {
             ready.clear()
             installRun = todo
             logAsync("${todo.size} to install.")
-            runOnUiThread { downloadAll(todo) }
+            // A VPN update from a different source cannot go over the old one. Offer to remove the old one first.
+            val oldVpn = todo.firstOrNull { it.packageName in Vpn.packages && updater.isInstalled(it.packageName) && !vpnWarned }
+            runOnUiThread { if (oldVpn != null) warnOldVpn(oldVpn, todo) else downloadAll(todo) }
         }
+    }
+
+    private var vpnWarned = false
+
+    private fun warnOldVpn(vpn: AppEntry, todo: List<AppEntry>) {
+        vpnWarned = true
+        AlertDialog.Builder(this)
+            .setTitle("Remove the old VPN first")
+            .setMessage("A newer ${vpn.name} is ready. If the install fails, remove the old VPN and run this again. You will sign in to the VPN once more.")
+            .setPositiveButton("Remove old VPN") { _, _ ->
+                try {
+                    startActivity(Intent(Intent.ACTION_DELETE, Uri.parse("package:${vpn.packageName}")))
+                } catch (e: Exception) {
+                    Gold.toast(this, "Couldn't open the remove screen.", Toast.LENGTH_LONG)
+                }
+            }
+            .setNegativeButton("Install anyway") { _, _ -> downloadAll(todo) }
+            .setOnDismissListener { }
+            .show()
     }
 
     private fun downloadAll(todo: List<AppEntry>) {
@@ -165,8 +188,8 @@ class MainActivity : AppCompatActivity() {
             withContext(Dispatchers.Main) {
                 updateProgress("All downloaded", todo.size)
                 if (ready.isEmpty()) { hideProgress(); showSummary(); return@withContext }
-                progressNote?.text = "Next, Fire TV will ask you to press Install for each app. Press Install every time it asks."
-                window.decorView.postDelayed({ hideProgress(); nextInstall() }, 3000)
+                progressNote?.text = "Next you'll see an Amazon screen. Press Install every time it asks."
+                window.decorView.postDelayed({ hideProgress(); nextInstall() }, 3500)
             }
         }
     }
@@ -176,26 +199,35 @@ class MainActivity : AppCompatActivity() {
     private fun styleButtons() {
         val accent = Themes.accentColor(prefs.accent)
         val d = resources.displayMetrics.density
-        fun bg(focused: Boolean) = android.graphics.drawable.GradientDrawable().apply {
-            cornerRadius = 12 * d
-            if (focused) { setColor(accent); setStroke((4 * d).toInt(), Color.WHITE) }
-            else { setColor(Color.parseColor("#14203D")); setStroke((1 * d).toInt(), Color.parseColor("#2A3A63")) }
-        }
+        fun bg(focused: Boolean) = Gold.button(prefs, ::dp, accent, Color.parseColor("#14203D"), Color.parseColor("#2A3A63"), focused).apply { cornerRadius = 12 * d }
         for (id in listOf(R.id.btnCheck, R.id.btnInstall, R.id.btnSelf, R.id.btnDiag, R.id.btnUrl, R.id.btnWifi, R.id.btnSystem)) {
             val b = findViewById<Button>(id)
             b.isAllCaps = false
             b.textSize = 18f
             b.setPadding((16 * d).toInt(), (12 * d).toInt(), (16 * d).toInt(), (12 * d).toInt())
             b.background = bg(false)
-            b.setTextColor(Color.WHITE)
+            b.setTextColor(Gold.buttonText(prefs, false))
+            if (Gold.on(prefs)) b.typeface = Gold.serif(this)
             b.setOnFocusChangeListener { v, has ->
                 v.background = bg(has)
-                (v as Button).setTextColor(if (has) Color.BLACK else Color.WHITE)
+                (v as Button).setTextColor(Gold.buttonText(prefs, has))
                 v.animate().scaleX(if (has) 1.03f else 1f).scaleY(if (has) 1.03f else 1f).setDuration(120).start()
             }
         }
         findViewById<Button>(R.id.btnInstall).text = "Install / update apps"
         findViewById<Button>(R.id.btnCheck).requestFocus()
+    }
+
+    /** The gold look for the Setup & updates page: black page, serif ivory title, quiet gold lines. */
+    private fun stylePage() {
+        if (!Gold.on(prefs)) return
+        (findViewById<android.view.ViewGroup>(android.R.id.content).getChildAt(0) ?: findViewById<View>(android.R.id.content)).setBackgroundColor(Gold.BG)
+        findViewById<TextView>(R.id.title).apply { setTextColor(Gold.IVORY); typeface = Gold.serif(this@MainActivity) }
+        findViewById<TextView>(R.id.deviceInfo).setTextColor(Gold.GOLD)
+        findViewById<TextView>(R.id.status).setTextColor(Gold.MUTED)
+        logView.setTextColor(Gold.IVORY)
+        (logView.parent as? View)?.setBackgroundColor(Color.parseColor("#0B0907"))
+        logView.setTextColor(Gold.IVORY)
     }
 
     private fun nextInstall() {
@@ -251,7 +283,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun hideProgress() {
-        progressDialog?.dismiss()
+        // The screen can be gone already (for example Android's installer took over after a failed download).
+        // Closing a box on a missing window crashes the app, so only close it when the window is still there.
+        try {
+            if (!isFinishing && !isDestroyed) progressDialog?.dismiss()
+        } catch (_: IllegalArgumentException) {
+        }
         progressDialog = null
     }
 

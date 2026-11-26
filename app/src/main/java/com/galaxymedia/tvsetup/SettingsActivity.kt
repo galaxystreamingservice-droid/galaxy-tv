@@ -40,6 +40,29 @@ class SettingsActivity : AppCompatActivity() {
     private var textColor = Color.parseColor("#EAF6FF")
     private var mutedColor = Color.parseColor("#9FB8C8")
 
+    // v0.14 premium look: black, champagne gold, ivory, the bundled serif. High contrast keeps the plain look.
+    private val premium: Boolean get() = !prefs.highContrast
+    private val gold = Color.parseColor("#D6B87A")
+    private val goldHi = Color.parseColor("#F0DAA8")
+    private val ivory = Color.parseColor("#F4EEE2")
+    private val serifFont by lazy { font("Cardo-Regular") }
+    private val capsFont by lazy { font("Montserrat-Medium") }
+    private fun font(name: String): Typeface = try { Typeface.createFromAsset(assets, "fonts/$name.ttf") } catch (e: Exception) { Typeface.DEFAULT }
+
+    /** Four tabs (v0.14). Owner tools appear after holding OK on the version line at the bottom. */
+    private val tabs = mutableListOf("Me", "Look", "Easy to see", "Stick")
+    private var tab = "Me"
+    private var ownerOn = false
+    private lateinit var tabBar: LinearLayout
+    private fun tabOf(label: String): String = when (label) {
+        "Your name", "Contact", "Weather", "Sports scores", "My teams", "Renewal reminder" -> "Me"
+        "Background", "Holiday touches", "Highlight color", "Screen effects", "Background movement", "Screen edge",
+        "Change every", "Light color", "Screensaver" -> "Look"
+        "Text size", "High contrast" -> "Easy to see"
+        "Start with the TV", "Clean up when I return home", "Maintenance reminder", "Setup & updates", "Reset my look" -> "Stick"
+        else -> "Owner"     // Hidden apps, Preview season, Watch all season scenes, Season test, Dim at night, Hide extras when idle
+    }
+
     companion object {
         private const val MATCH = ViewGroup.LayoutParams.MATCH_PARENT
         private const val WRAP = ViewGroup.LayoutParams.WRAP_CONTENT
@@ -60,6 +83,7 @@ class SettingsActivity : AppCompatActivity() {
             textColor = Color.WHITE; mutedColor = Color.WHITE
         }
         setContentView(buildShell())
+        renderTabs()
         render(0)
     }
 
@@ -70,20 +94,24 @@ class SettingsActivity : AppCompatActivity() {
             gravity = Gravity.CENTER_HORIZONTAL
             setPadding(dp(56), dp(36), dp(56), dp(36))
         }
+        if (premium) root.setBackgroundColor(Color.parseColor("#050403"))
         titleView = TextView(this).apply {
             text = "Settings"
-            textSize = 34f * prefs.textScale
+            textSize = (if (premium) 40f else 34f) * prefs.textScale
             setTextColor(accent)
             gravity = Gravity.CENTER
+            if (premium) typeface = serifFont
         }
         col.addView(titleView)
         col.addView(TextView(this).apply {
-            text = "Press a row to change it. Press Back when you are done to see the change."
-            textSize = 16f * prefs.textScale
-            setTextColor(mutedColor)
+            text = "Press a row to change it. Press Back when you are done."
+            textSize = 15f * prefs.textScale
+            setTextColor(if (premium) Color.argb(170, 244, 238, 226) else mutedColor)
             gravity = Gravity.CENTER
-            setPadding(0, dp(6), 0, dp(18))
+            setPadding(0, dp(4), 0, dp(14))
         })
+        tabBar = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER; clipChildren = false; clipToPadding = false }
+        col.addView(tabBar, LinearLayout.LayoutParams(WRAP, WRAP).apply { bottomMargin = dp(10) })
         list = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             clipChildren = false
@@ -96,7 +124,28 @@ class SettingsActivity : AppCompatActivity() {
             clipToPadding = false
             addView(list, FrameLayout.LayoutParams(MATCH, WRAP))
         }
-        col.addView(scroll, LinearLayout.LayoutParams(dp(640), 0, 1f))
+        col.addView(scroll, LinearLayout.LayoutParams(dp(if (premium) 760 else 640), 0, 1f))
+        // The version line. Holding OK on it opens the owner tools (hidden apps, season tests, preview).
+        col.addView(TextView(this).apply {
+            text = "Galaxy Media " + try { packageManager.getPackageInfo(packageName, 0).versionName } catch (e: Exception) { "" }
+            textSize = 12f * prefs.textScale
+            letterSpacing = 0.14f
+            setTextColor(if (premium) Color.argb(150, 214, 184, 122) else mutedColor)
+            if (premium) typeface = capsFont
+            gravity = Gravity.CENTER
+            setPadding(dp(16), dp(6), dp(16), dp(6))
+            isFocusable = true
+            isLongClickable = true
+            setOnFocusChangeListener { v, has -> v.alpha = if (has) 1f else 0.7f }
+            setOnLongClickListener {
+                ownerOn = !ownerOn
+                if (ownerOn && "Owner" !in tabs) tabs += "Owner"
+                if (!ownerOn) { tabs.remove("Owner"); if (tab == "Owner") tab = "Me" }
+                Gold.toast(this@SettingsActivity, if (ownerOn) "Owner tools on" else "Owner tools off", Toast.LENGTH_SHORT)
+                renderTabs(); render(0, false)
+                true
+            }
+        }, LinearLayout.LayoutParams(WRAP, WRAP).apply { topMargin = dp(8) })
         root.addView(col, FrameLayout.LayoutParams(MATCH, MATCH))
         return root
     }
@@ -243,21 +292,55 @@ class SettingsActivity : AppCompatActivity() {
             prefs.storyTestUntil = if (StoryTest.active(prefs)) 0L else System.currentTimeMillis() + StoryTest.LENGTH_MS
         }
         out += Row("Setup & updates", "Open", false) { startActivity(Intent(this, MainActivity::class.java)) }
-        out += Row("Done", "Back to home", false) { finish() }
         return out
     }
 
-    private fun render(focusIndex: Int) {
+    /** focusIndex is the row's place in the full list (the pickers remember it); only the current tab's rows are shown. */
+    private fun render(focusIndex: Int, takeFocus: Boolean = true) {
         accent = Themes.accentColor(prefs.accent)
-        titleView.setTextColor(accent)
+        titleView.setTextColor(if (premium) ivory else accent)
         list.removeAllViews()
-        val rs = rows()
-        rs.forEachIndexed { i, r ->
-            val lp = LinearLayout.LayoutParams(MATCH, WRAP).apply { bottomMargin = dp(12) }   // tall enough for the explanation line
+        val all = rows()
+        val target = all.getOrNull(focusIndex)
+        val shown = all.withIndex().filter { tabOf(it.value.label) == tab }
+        shown.forEach { (i, r) ->
+            val lp = LinearLayout.LayoutParams(MATCH, WRAP).apply { bottomMargin = dp(if (premium) 6 else 12) }
             list.addView(makeRow(r, i), lp)
         }
-        val idx = focusIndex.coerceIn(0, list.childCount - 1)
+        if (!takeFocus) return
+        val idx = shown.indexOfFirst { it.value === target }.coerceAtLeast(0).coerceAtMost(list.childCount - 1)
         list.post { list.getChildAt(idx)?.requestFocus() }
+    }
+
+    /** The tab names across the top. Moving onto a tab shows its rows; Down goes into them. */
+    private fun renderTabs() {
+        tabBar.removeAllViews()
+        for (t in tabs) {
+            val tv = TextView(this).apply {
+                text = t
+                textSize = (if (premium) 22f else 18f) * prefs.textScale
+                if (premium) typeface = serifFont
+                gravity = Gravity.CENTER
+                setPadding(dp(22), dp(8), dp(22), dp(10))
+                isFocusable = true
+                isClickable = true
+            }
+            fun paint(has: Boolean) {
+                val on = t == tab
+                tv.setTextColor(if (has) (if (premium) goldHi else Color.BLACK) else if (on) (if (premium) gold else accent) else (if (premium) Color.argb(150, 244, 238, 226) else mutedColor))
+                tv.background = if (has) ringBg(18f) else if (on && premium) GradientDrawable().apply {
+                    shape = GradientDrawable.RECTANGLE; cornerRadius = dpf(18f)
+                    setColor(Color.TRANSPARENT); setStroke(dp(1), (gold and 0x00FFFFFF) or 0x66000000.toInt())
+                } else null
+            }
+            paint(false)
+            tv.setOnFocusChangeListener { _, has ->
+                if (has && tab != t) { tab = t; render(0, false); for (k in 0 until tabBar.childCount) (tabBar.getChildAt(k) as? TextView)?.let { it.onFocusChangeListener?.onFocusChange(it, it.hasFocus()) } }
+                paint(has)
+            }
+            tv.setOnClickListener { list.getChildAt(0)?.requestFocus() }
+            tabBar.addView(tv, LinearLayout.LayoutParams(WRAP, WRAP).apply { marginEnd = dp(8) })
+        }
     }
 
     /** One short, plain sentence under a row, so nobody has to guess what it does. */
@@ -280,7 +363,7 @@ class SettingsActivity : AppCompatActivity() {
         "Screen effects" to "Automatic gives older sticks fewer effects so they stay smooth. Off stops all movement.",
         "Clean up when I return home" to "When you come back from another app, apps left running are closed so the stick stays fast. Your VPN stays on.",
         "Hide extras when idle" to "After 30 seconds with no button pressed, the buttons and scores fade so the picture is clean. Press any button to bring them back.",
-        "Dim at night" to "Lowers the brightness from the hour you pick until 6 AM, so the screen is not harsh in a dark room.",
+        "Dim at night" to "Owner tool. Galaxy Media's own home screen dims from 10 PM to 6 AM by itself; other apps are never dimmed.",
         "Weather" to "Shows the temperature under the clock. Enter your ZIP code.",
         "Screensaver" to "After about 5 minutes with nothing pressed, the screen shows a dimmed picture and a slow clock.",
         "Start with the TV" to "Opens Galaxy Media by itself when the stick turns on.",
@@ -300,22 +383,26 @@ class SettingsActivity : AppCompatActivity() {
             isFocusable = true
             isClickable = true
         }
-        val label = TextView(this).apply { text = r.label; textSize = 20f * prefs.textScale; setTextColor(textColor) }
-        val value = TextView(this).apply { text = r.value; textSize = 20f * prefs.textScale; setTextColor(accent); gravity = Gravity.END }
+        val valueColor = if (premium) gold else accent
+        val label = TextView(this).apply { text = r.label; textSize = (if (premium) 22f else 20f) * prefs.textScale; setTextColor(if (premium) ivory else textColor); if (premium) typeface = serifFont }
+        val value = TextView(this).apply {
+            text = r.value; textSize = (if (premium) 14f else 20f) * prefs.textScale; setTextColor(valueColor); gravity = Gravity.END
+            if (premium) { typeface = capsFont; isAllCaps = true; letterSpacing = 0.12f; maxWidth = dp(300) }
+        }
         val hint = hints[r.label]
         val labelCol = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         labelCol.addView(label)
         val hintTv = if (hint == null) null else TextView(this).apply {
             text = hint
             textSize = 13f * prefs.textScale
-            setTextColor(mutedColor)
+            setTextColor(if (premium) Color.argb(160, 244, 238, 226) else mutedColor)
             setPadding(0, dp(2), dp(16), 0)
         }
         if (hintTv != null) labelCol.addView(hintTv)
         box.addView(labelCol, LinearLayout.LayoutParams(0, WRAP, 1f))
         box.addView(value, LinearLayout.LayoutParams(WRAP, WRAP))
-        val styled = mutableListOf(label to textColor, value to accent)
-        if (hintTv != null) styled += hintTv to mutedColor
+        val styled = mutableListOf(label to (if (premium) ivory else textColor), value to valueColor)
+        if (hintTv != null) styled += hintTv to (if (premium) Color.argb(160, 244, 238, 226) else mutedColor)
         style(box, 14f, styled)
         box.setOnClickListener {
             r.onClick()
@@ -368,13 +455,13 @@ class SettingsActivity : AppCompatActivity() {
 
     private fun findCity(q: String, rowIndex: Int) {
         if (q.isBlank()) return
-        Toast.makeText(this, "Looking up $q...", Toast.LENGTH_SHORT).show()
+        Gold.toast(this, "Looking up $q...", Toast.LENGTH_SHORT)
         Thread {
             val city = try { WeatherRepository.geocode(q) } catch (e: Exception) { null }
             runOnUiThread {
                 if (isFinishing) return@runOnUiThread
                 if (city == null) {
-                    Toast.makeText(this, "Couldn't find that city. Check the spelling and the Wi-Fi.", Toast.LENGTH_LONG).show()
+                    Gold.toast(this, "Couldn't find that city. Check the spelling and the Wi-Fi.", Toast.LENGTH_LONG)
                     return@runOnUiThread
                 }
                 prefs.weatherName = city.name
@@ -422,7 +509,7 @@ class SettingsActivity : AppCompatActivity() {
             if (raw.isBlank()) emptyList() else com.galaxymedia.tvsetup.model.DeviceSettings.parse(raw).apps.filter { it.pinned }
         } catch (e: Exception) { emptyList() }
         if (apps.isEmpty()) {
-            Toast.makeText(this, "No apps yet. Open Setup & updates and load your settings first.", Toast.LENGTH_LONG).show()
+            Gold.toast(this, "No apps yet. Open Setup & updates and load your settings first.", Toast.LENGTH_LONG)
             return
         }
         val hidden = prefs.hiddenApps
@@ -454,13 +541,13 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun loadTeams(label: String, rowIndex: Int) {
-        Toast.makeText(this, "Loading $label teams...", Toast.LENGTH_SHORT).show()
+        Gold.toast(this, "Loading $label teams...", Toast.LENGTH_SHORT)
         Thread {
             val teams = try { SportsRepository.fetchTeams(label) } catch (e: Exception) { emptyList() }
             runOnUiThread {
                 if (isFinishing) return@runOnUiThread
                 if (teams.isEmpty()) {
-                    Toast.makeText(this, "Couldn't load teams. Check the Wi-Fi and try again.", Toast.LENGTH_LONG).show()
+                    Gold.toast(this, "Couldn't load teams. Check the Wi-Fi and try again.", Toast.LENGTH_LONG)
                     return@runOnUiThread
                 }
                 val keys = teams.map { "$label:${it.first}" }
@@ -491,15 +578,19 @@ class SettingsActivity : AppCompatActivity() {
         }
         v.setOnFocusChangeListener { view, has ->
             labels.forEach { (t, c) ->
-                t.setTextColor(if (has) Color.BLACK else c)
-                t.setTypeface(null, if (has) Typeface.BOLD else Typeface.NORMAL)
+                t.setTextColor(if (has) (if (premium) goldHi else Color.BLACK) else c)
+                if (!premium) t.setTypeface(null, if (has) Typeface.BOLD else Typeface.NORMAL)
             }
             val s = if (has) 1.03f else 1f
             view.animate().scaleX(s).scaleY(s).setDuration(120).start()
         }
     }
 
-    private fun normalBg(radiusDp: Float): Drawable = GradientDrawable().apply {
+    private fun normalBg(radiusDp: Float): Drawable = if (premium) LayerDrawable(arrayOf<Drawable>(
+        // no card: a fine gold hairline under each row
+        GradientDrawable().apply { setColor((gold and 0x00FFFFFF) or 0x38000000) },
+        GradientDrawable().apply { setColor(Color.parseColor("#050403")) }
+    )).apply { setLayerInset(1, 0, 0, 0, dp(1)) } else GradientDrawable().apply {
         shape = GradientDrawable.RECTANGLE
         cornerRadius = dpf(radiusDp)
         setColor(cardColor)
@@ -512,6 +603,10 @@ class SettingsActivity : AppCompatActivity() {
             cornerRadius = dpf(maxOf(r, 0f))
             setColor(c)
         }
+        if (premium) return LayerDrawable(arrayOf<Drawable>(     // selected: a gold frame around dark glass
+            layer(radiusDp, goldHi),
+            layer(radiusDp - 2f, Color.parseColor("#F0120E09"))
+        )).apply { setLayerInset(1, dp(2), dp(2), dp(2), dp(2)) }
         return LayerDrawable(arrayOf<Drawable>(
             layer(radiusDp, Color.BLACK),
             layer(radiusDp - 3f, Color.WHITE),

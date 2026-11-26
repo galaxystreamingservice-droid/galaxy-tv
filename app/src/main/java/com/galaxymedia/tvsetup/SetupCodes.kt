@@ -56,6 +56,22 @@ object SetupCodes {
         PaymentResult(null, true)
     }
 
+    /** Message board entry from the shared codes file: {"id","type":"outage|note","text","until":"yyyy-MM-dd"}. */
+    fun board(): PaymentResult = try {
+        val conn = (URL(CODES_URL).openConnection() as HttpURLConnection).apply {
+            connectTimeout = 8000
+            readTimeout = 8000
+            setRequestProperty("User-Agent", "galaxy-media")
+        }
+        val body = conn.inputStream.bufferedReader().use { it.readText() }
+        val o = JSONObject(body)
+        PaymentResult(o.optJSONObject("_board") ?: o.optJSONObject("board"), true)
+    } catch (e: java.io.IOException) {
+        PaymentResult(null, false)
+    } catch (e: Exception) {
+        PaymentResult(null, true)
+    }
+
     /** Blocking. Call from a background thread. */
     fun resolve(input: String): Result {
         val raw = input.trim()

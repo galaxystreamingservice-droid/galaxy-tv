@@ -4,5 +4,34 @@
         <item name="android:windowBackground">#03050C</item>
         <item name="android:textColor">#EAF6FF</item>
         <item name="android:colorAccent">#22D3EE</item>
+        <!-- v0.14: every pop-up in the premium look (smoked black glass, thin gold line, gold buttons) -->
+        <item name="android:alertDialogTheme">@style/GalaxyDialog</item>
+        <item name="alertDialogTheme">@style/GalaxyDialog.Compat</item>
+    </style>
+
+    <style name="GalaxyDialog" parent="@android:style/Theme.Material.Dialog.Alert">
+        <item name="android:windowBackground">@drawable/dialog_bg</item>
+        <item name="android:colorBackground">#0B0907</item>
+        <item name="android:colorAccent">#D6B87A</item>
+        <item name="android:colorPrimary">#D6B87A</item>
+        <item name="android:colorControlActivated">#D6B87A</item>
+        <item name="android:colorControlNormal">#8C8070</item>
+        <item name="android:colorControlHighlight">#40D6B87A</item>
+        <item name="android:textColorPrimary">#F4EEE2</item>
+        <item name="android:textColorSecondary">#C9C0AE</item>
+        <item name="android:textColorAlertDialogListItem">#F4EEE2</item>
+        <item name="android:textColorHint">#8C8475</item>
+        <item name="android:textColor">#F4EEE2</item>
+        <item name="android:fontFamily">serif</item>
+        <item name="android:backgroundDimAmount">0.7</item>
+    </style>
+
+    <style name="GalaxyDialog.Compat" parent="Theme.AppCompat.Dialog.Alert">
+        <item name="android:windowBackground">@drawable/dialog_bg</item>
+        <item name="colorAccent">#D6B87A</item>
+        <item name="colorControlHighlight">#40D6B87A</item>
+        <item name="android:textColorPrimary">#F4EEE2</item>
+        <item name="android:textColorSecondary">#C9C0AE</item>
+        <item name="android:fontFamily">serif</item>
     </style>
 </resources>

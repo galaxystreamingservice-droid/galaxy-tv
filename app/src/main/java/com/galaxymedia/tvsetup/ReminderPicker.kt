@@ -38,7 +38,7 @@ object ReminderPicker {
                     4 -> pickDate(activity, prefs, onDone)
                     else -> {
                         prefs.reminderDate = ""
-                        Toast.makeText(activity, "Reminder cleared.", Toast.LENGTH_SHORT).show()
+                        Gold.toast(activity, "Reminder cleared.", Toast.LENGTH_SHORT)
                         onDone()
                     }
                 }
@@ -95,7 +95,7 @@ object ReminderPicker {
 
     private fun save(activity: AppCompatActivity, prefs: Prefs, date: Date, onDone: () -> Unit) {
         prefs.reminderDate = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(date)
-        Toast.makeText(activity, "Reminder set for ${nice(date)}.", Toast.LENGTH_LONG).show()
+        Gold.toast(activity, "Reminder set for ${nice(date)}.", Toast.LENGTH_LONG)
         onDone()
     }
 }

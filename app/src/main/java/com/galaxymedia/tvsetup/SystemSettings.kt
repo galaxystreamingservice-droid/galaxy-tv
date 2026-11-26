@@ -80,12 +80,12 @@ object SystemSettings {
         } else if (!blocked) {
             for (i in implicitExact) if (tryStart(activity, i)) return Result.EXACT
             if (tryStart(activity, implicitMain)) {
-                if (target != Target.MAIN) Toast.makeText(activity, "Opened Settings. Go to: $hint", Toast.LENGTH_LONG).show()
+                if (target != Target.MAIN) Gold.toast(activity, "Opened Settings. Go to: $hint", Toast.LENGTH_LONG)
                 return Result.GENERAL
             }
         }
         for (i in launchers) if (tryStart(activity, i)) {
-            if (target != Target.MAIN) Toast.makeText(activity, "Opened Settings. Go to: $hint", Toast.LENGTH_LONG).show()
+            if (target != Target.MAIN) Gold.toast(activity, "Opened Settings. Go to: $hint", Toast.LENGTH_LONG)
             return if (target == Target.MAIN) Result.EXACT else Result.GENERAL
         }
         AlertDialog.Builder(activity)

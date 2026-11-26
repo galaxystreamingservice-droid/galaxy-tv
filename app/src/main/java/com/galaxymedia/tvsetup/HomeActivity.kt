@@ -190,6 +190,8 @@ class HomeActivity : AppCompatActivity() {
     private lateinit var saverLayer: FrameLayout
     private lateinit var saverClock: TextClock
     private lateinit var noticeBox: TextView
+    private lateinit var boardBox: TextView
+    private var boardShowingNote: String = ""
     private lateinit var liveView: TextView
     private lateinit var seasonGreeting: TextView
     private lateinit var renewBox: LinearLayout
@@ -354,6 +356,7 @@ class HomeActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         pausedAt = SystemClock.elapsedRealtime()
+        if (boardShowingNote.isNotEmpty()) prefs.boardNoteDone = boardShowingNote
         stopMeasure()
         handler.removeCallbacks(tick)
         handler.removeCallbacks(testTick)
@@ -577,6 +580,15 @@ class HomeActivity : AppCompatActivity() {
         }
         top.addView(chipRow, LinearLayout.LayoutParams(WRAP, WRAP))
         content.addView(top, LinearLayout.LayoutParams(MATCH, WRAP))
+
+        // Message board from the shared codes file: an outage strip or a one-time note (hidden when there is none)
+        boardBox = TextView(this).apply {
+            textSize = 18f * prefs.textScale
+            gravity = Gravity.CENTER
+            setPadding(dp(24), dp(10), dp(24), dp(10))
+            visibility = View.GONE
+        }
+        content.addView(boardBox, LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(12) })
 
         // Family notice from the settings file (hidden when there is none)
         noticeBox = TextView(this).apply {
@@ -1053,6 +1065,10 @@ class HomeActivity : AppCompatActivity() {
         io.launch {
             val fresh = try { SettingsRepository(this@HomeActivity).fetch { } } catch (e: Exception) { null }
             val rel = try { updater.latestRelease() } catch (e: Exception) { null }
+            try {
+                val b = SetupCodes.board()
+                if (b.reachable) prefs.boardRaw = b.data?.toString() ?: ""
+            } catch (e: Exception) { }
             val mine = currentVersion()
             withContext(Dispatchers.Main) {
                 if (isFinishing) return@withContext
@@ -1085,6 +1101,7 @@ class HomeActivity : AppCompatActivity() {
         rebuildChips()
         rebuildShelf()
         updateSports()
+        updateBoard()
         updateNotice()
     }
 
@@ -1104,6 +1121,36 @@ class HomeActivity : AppCompatActivity() {
         countdownView.text = cd ?: ""
         countdownView.visibility = if (cd == null) View.GONE else View.VISIBLE
         countdownView.setTextColor(if (prefs.highContrast) textColor else if (premium) goldHi else Seasons.accent(this, sceneNow().ifEmpty { "galaxy" }))
+    }
+
+    private fun updateBoard() {
+        boardShowingNote = ""
+        val raw = prefs.boardRaw
+        val o = try { if (raw.isEmpty()) null else org.json.JSONObject(raw) } catch (e: Exception) { null }
+        val text = o?.optString("text", "")?.trim().orEmpty()
+        if (o == null || text.isEmpty()) { boardBox.visibility = View.GONE; return }
+        val id = o.optString("id", "").ifEmpty { text.hashCode().toString() }
+        val outage = o.optString("type", "note") == "outage"
+        val now = System.currentTimeMillis()
+        if (prefs.boardId != id) { prefs.boardId = id; prefs.boardSeenAt = now }
+        // Ends on the "until" day (end of that day), otherwise 3 days (outage) or 7 days (note) after first seen
+        val until = o.optString("until", "")
+        val endsAt = try {
+            val d = SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(until)
+            if (d != null && until.isNotEmpty()) d.time + 24L * 3600 * 1000 else null
+        } catch (e: Exception) { null } ?: (prefs.boardSeenAt + (if (outage) 3 else 7) * 24L * 3600 * 1000)
+        if (now > endsAt || (!outage && prefs.boardNoteDone == id)) { boardBox.visibility = View.GONE; return }
+        val tone = if (outage) Color.parseColor("#C8503A") else if (premium) goldHi else amber
+        boardBox.setTextColor(tone)
+        boardBox.background = GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = dpf(if (outage) 8f else 14f)
+            setColor(if (prefs.highContrast) Color.BLACK else Color.parseColor("#CC0B0907"))
+            setStroke(if (prefs.highContrast) dp(2) else dp(1), tone)
+        }
+        boardBox.text = text
+        boardBox.visibility = View.VISIBLE
+        if (!outage) boardShowingNote = id
     }
 
     private fun updateNotice() {
@@ -1249,7 +1296,8 @@ class HomeActivity : AppCompatActivity() {
             val tile = makeTile(a.name, icon, a.name.take(1).uppercase(), a.pkg, note) {
                 val i = packageManager.getLeanbackLaunchIntentForPackage(a.pkg)
                     ?: packageManager.getLaunchIntentForPackage(a.pkg)
-                if (i == null) Toast.makeText(this, "${a.name} isn't installed yet. Open Setup & updates.", Toast.LENGTH_LONG).show()
+                if (i == null) Gold.toast(this, "${a.name} isn't installed yet. Open Setup & updates.", Toast.LENGTH_LONG)
+                else if (a.name.contains("theater", true) || a.name.contains("theatre", true)) openWithCard("Now opening ${a.name}", i)
                 else startActivity(i)
             }
             shelfRow.addView(tile, tileParams(tileW))
@@ -1477,11 +1525,21 @@ class HomeActivity : AppCompatActivity() {
     private fun openPay() { startActivity(Intent(this, PayActivity::class.java)) }
     private fun openContact() { startActivity(Intent(this, ContactActivity::class.java)) }
 
+    /** A short gold card ("Now opening ...") shown for a moment before another app takes the screen. */
+    private fun openWithCard(title: String, intent: Intent) {
+        val d = AlertDialog.Builder(this).setTitle(title).setMessage("One moment.").setCancelable(false).create()
+        d.show()
+        handler.postDelayed({
+            try { if (d.isShowing && !isFinishing) d.dismiss() } catch (e: Exception) { }
+            try { startActivity(intent) } catch (e: Exception) { Gold.toast(this, "Couldn't open it.", Toast.LENGTH_LONG) }
+        }, 1200)
+    }
+
     /** The VPN chip opens the WorldVPN app, where each person signs in and connects. */
     private fun openVpnApp() {
         val i = Vpn.installed(this)?.let { packageManager.getLaunchIntentForPackage(it) }
-        if (i == null) Toast.makeText(this, "The VPN app isn't installed on this stick. Open Setup & updates to install it.", Toast.LENGTH_LONG).show()
-        else try { startActivity(i) } catch (e: Exception) { Toast.makeText(this, "Couldn't open the VPN app.", Toast.LENGTH_LONG).show() }
+        if (i == null) Gold.toast(this, "The VPN app isn't installed on this stick. Open Setup & updates to install it.", Toast.LENGTH_LONG)
+        else try { startActivity(i) } catch (e: Exception) { Gold.toast(this, "Couldn't open the VPN app.", Toast.LENGTH_LONG) }
     }
 
     private fun askRestart(upHours: Long) {
@@ -1556,7 +1614,7 @@ class HomeActivity : AppCompatActivity() {
             .setPositiveButton("Save") { _, _ ->
                 val zip = input.text.toString().trim()
                 if (zip.length != 5) {
-                    Toast.makeText(this, "A ZIP code is 5 digits. You can set weather later in Settings.", Toast.LENGTH_LONG).show()
+                    Gold.toast(this, "A ZIP code is 5 digits. You can set weather later in Settings.", Toast.LENGTH_LONG)
                     askCode()
                 } else {
                     io.launch {
@@ -1568,9 +1626,9 @@ class HomeActivity : AppCompatActivity() {
                                 prefs.weatherLat = city.lat
                                 prefs.weatherLon = city.lon
                                 refreshWeather()
-                                Toast.makeText(this@HomeActivity, "Weather set for ${city.name}", Toast.LENGTH_SHORT).show()
+                                Gold.toast(this@HomeActivity, "Weather set for ${city.name}", Toast.LENGTH_SHORT)
                             } else {
-                                Toast.makeText(this@HomeActivity, "Couldn't look up that ZIP. You can set a city later in Settings.", Toast.LENGTH_LONG).show()
+                                Gold.toast(this@HomeActivity, "Couldn't look up that ZIP. You can set a city later in Settings.", Toast.LENGTH_LONG)
                             }
                             askCode()
                         }
@@ -1595,13 +1653,13 @@ class HomeActivity : AppCompatActivity() {
             .setView(input)
             .setPositiveButton("Continue") { _, _ ->
                 val code = input.text.toString().trim()
-                Toast.makeText(this, "Checking code…", Toast.LENGTH_SHORT).show()
+                Gold.toast(this, "Checking code…", Toast.LENGTH_SHORT)
                 io.launch {
                     val r = SetupCodes.resolve(code)
                     if (r.url == null) {
                         withContext(Dispatchers.Main) {
                             if (isFinishing) return@withContext
-                            Toast.makeText(this@HomeActivity, r.error ?: "Code not found.", Toast.LENGTH_LONG).show()
+                            Gold.toast(this@HomeActivity, r.error ?: "Code not found.", Toast.LENGTH_LONG)
                             askCode(code)
                         }
                         return@launch
@@ -1616,7 +1674,7 @@ class HomeActivity : AppCompatActivity() {
                             rebuildAll()
                             startActivity(Intent(this@HomeActivity, MainActivity::class.java).putExtra("autoInstall", true))
                         } else {
-                            Toast.makeText(this@HomeActivity, "Code accepted, but the settings didn't load. Open Setup & updates and press Check updates.", Toast.LENGTH_LONG).show()
+                            Gold.toast(this@HomeActivity, "Code accepted, but the settings didn't load. Open Setup & updates and press Check updates.", Toast.LENGTH_LONG)
                         }
                     }
                 }
